@@ -1,0 +1,25 @@
+# This file can be used to install a new conda environment specifically for this
+# application, using the following commands (we choose the arbitrary name
+# pyzephyr for that environment here, feel free to pick your own):
+#
+#   Create Environment:
+#   conda env create -n physiological-data-collection -f conda-environment.yml
+#
+#   Activate Environment:
+#   conda activate physiological-data-collection
+#
+#   Launch application
+#   python main.py
+#
+channels:
+- conda-forge
+- defaults
+dependencies:
+- python=3.7
+- pip
+- pip:
+  - cbitstruct
+  - pylsl==1.13.1
+  - numpy
+  - pandas
+  - matplotlib

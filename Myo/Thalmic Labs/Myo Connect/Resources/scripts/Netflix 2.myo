@@ -1,0 +1,311 @@
+-- Base Class
+
+MediaPlayer = {}
+
+function MediaPlayer:new (o)
+    o = o or {}
+    setmetatable(o, self)
+    self.__index = self
+    return o
+end
+
+function MediaPlayer:playPause()
+    myo.keyboard("space", "press")
+end
+
+function MediaPlayer:volumeBurstUp()
+    if platform == "MacOS" then
+        myo.keyboard("up_arrow", "press", "command")
+    elseif platform == "Windows" then
+        myo.keyboard("up_arrow", "press", "control")
+    end
+end
+
+function MediaPlayer:volumeBurstDown()
+    if platform == "MacOS" then
+        myo.keyboard("down_arrow", "press", "command")
+    elseif platform == "Windows" then
+        myo.keyboard("down_arrow", "press", "control")
+    end
+end
+
+function MediaPlayer:shuttleJumpForward()
+    if platform == "MacOS" then
+        myo.keyboard("right_arrow", "press", "command", "alt")
+    elseif platform == "Windows" then
+        myo.keyboard("right_arrow", "press", "alt")
+    end
+end
+
+function MediaPlayer:shuttleJumpBackward()
+    if platform == "MacOS" then
+        myo.keyboard("left_arrow", "press", "command", "alt")
+    elseif platform == "Windows" then
+        myo.keyboard("left_arrow", "press", "alt")
+    end
+end
+
+function MediaPlayer:shuttleBurstForward()
+    if platform == "MacOS" then
+        myo.keyboard("right_arrow", "press", "command", "control")
+    elseif platform == "Windows" then
+        myo.keyboard("right_arrow", "press", "shift")
+    end
+end
+
+function MediaPlayer:shuttleBurstBackward()
+    if platform == "MacOS" then
+        myo.keyboard("left_arrow", "press", "command", "control")
+    elseif platform == "Windows" then
+        myo.keyboard("left_arrow", "press", "shift")
+    end
+end
+
+function MediaPlayer:enterShuttleMode()
+    -- Empty by default
+end
+
+function MediaPlayer:exitShuttleMode()
+    -- Empty by default
+end
+
+function MediaPlayer:enterShuttleBurstMode()
+    -- Empty by default
+end
+
+function MediaPlayer:exitShuttleBurstMode()
+    -- Empty by default
+end
+
+-- Helpers
+
+function getMyoRollDegrees()
+    local rollValue = math.deg(myo.getRoll())
+    return rollValue
+end
+
+function degreeDiff(value, base)
+    local diff = value - base
+
+    if diff > 180 then
+        diff = diff - 360
+    elseif diff < -180 then
+        diff = diff + 360
+    end
+
+    return diff
+end
+
+-- Effects
+
+function shuttleJump()
+    if shuttleDirection == "backward" then
+        currentPlayer:shuttleJumpBackward()
+    else
+        currentPlayer:shuttleJumpForward()
+    end
+end
+
+function shuttleBurst()
+    if shuttleDirection == "backward" then
+        currentPlayer:shuttleBurstBackward()
+    else
+        currentPlayer:shuttleBurstForward()
+    end
+end
+
+-- Triggers
+
+function onPoseEdge(pose, edge)
+    local now = myo.getTimeMilliseconds()
+
+    -- Play/pause
+    if edge == "on" and pose == "fingersSpread" then
+        currentPlayer:playPause()
+        myo.unlock("timed")
+        myo.notifyUserAction()
+    end
+
+    -- Shuttle controls
+    if pose == "waveIn" or pose == "waveOut" then
+
+        -- Swap Wave In/Out if Myo is on the left arm.
+        if myo.getArm() == "left" then
+            if pose == "waveIn" then
+                pose = "waveOut"
+            else
+                pose = "waveIn"
+            end
+        end
+
+        if pose == "waveIn" then
+            shuttleDirection = "backward"
+        else
+            shuttleDirection = "forward"
+        end
+
+        if edge == "on" then
+            shuttleState = "oneShot"
+            shuttleSince = now
+            currentPlayer:enterShuttleMode()
+            myo.unlock("hold")
+            myo.notifyUserAction()
+        end
+
+        if edge == "off" then
+            if shuttleState == "oneShot" then
+                shuttleJump()
+            end
+            shuttleState = nil
+            currentPlayer:exitShuttleMode()
+            currentPlayer:exitShuttleBurstMode()
+            myo.unlock("timed")
+            if shuttleState == "continuous" then
+                myo.notifyUserAction()
+            end
+        end
+    end
+
+    -- Volume controls
+    if pose == "fist" then
+        volumeActive = edge == "on"
+        rollReference = getMyoRollDegrees()
+        volumeSince = now
+        myo.unlock(edge == "on" and "hold" or "timed")
+        myo.notifyUserAction()
+    end
+end
+
+SHUTTLE_CONTINUOUS_TIMEOUT = 800
+SHUTTLE_CONTINUOUS_PERIOD = 250
+
+FAST_VOLUME_THRESHOLD = 34 -- degrees
+FAST_VOLUME_PERIOD = 100
+
+SLOW_VOLUME_THRESHOLD = 11.5 -- degrees
+SLOW_VOLUME_PERIOD = 330
+
+function onPeriodic()
+    local now = myo.getTimeMilliseconds()
+    if shuttleState then
+        if shuttleState == "oneShot" and (now - shuttleSince) > SHUTTLE_CONTINUOUS_TIMEOUT then
+            shuttleState = "continuous"
+            currentPlayer:enterShuttleBurstMode()
+        end
+
+        if shuttleState == "continuous" and (now - shuttleSince) > SHUTTLE_CONTINUOUS_PERIOD then
+            shuttleBurst()
+            shuttleSince = now
+        end
+    end
+
+    if volumeActive then
+        local relativeRoll = degreeDiff(getMyoRollDegrees(), rollReference)
+        if math.abs(relativeRoll) > FAST_VOLUME_THRESHOLD then
+            if now - volumeSince > FAST_VOLUME_PERIOD then
+                if relativeRoll > 0 then
+                    currentPlayer:volumeBurstUp()
+                else
+                    currentPlayer:volumeBurstDown()
+                end
+                volumeSince = now
+            end
+        elseif math.abs(relativeRoll) > SLOW_VOLUME_THRESHOLD then
+            if now - volumeSince > SLOW_VOLUME_PERIOD then
+                if relativeRoll > 0 then
+                    currentPlayer:volumeBurstUp()
+                else
+                    currentPlayer:volumeBurstDown()
+                end
+                volumeSince = now
+            end
+        end
+    end
+end
+
+function onActiveChange(isActive)
+    if not isActive then
+        shuttleState = nil
+        volumeActive = false
+    end
+end
+scriptId = 'com.thalmic.scripts.Netflix'
+scriptDetailsUrl = 'https://market.myo.com/app/5474cd10e4b081c4011c77b2'
+scriptTitle = 'Netflix Connector'
+
+currentPlayer = MediaPlayer:new()
+
+function currentPlayer:volumeBurstUp()
+    myo.keyboard("up_arrow", "press")
+end
+
+function currentPlayer:volumeBurstDown()
+    myo.keyboard("down_arrow", "press")
+end
+
+function currentPlayer:shuttleJumpForward()
+    myo.keyboard("right_arrow", "press")
+end
+
+function currentPlayer:shuttleJumpBackward()
+    myo.keyboard("left_arrow", "press")
+end
+
+function currentPlayer:shuttleBurstForward()
+    myo.keyboard("right_arrow", "press")
+end
+
+function currentPlayer:shuttleBurstBackward()
+    myo.keyboard("left_arrow", "press")
+end
+
+function currentPlayer:enterShuttleMode()
+    -- This will enter shuttle mode. It toggles the seeking mode, so make sure to
+    -- only call it once!
+    myo.keyboard("space", "press", "control")
+end
+
+function currentPlayer:exitShuttleMode()
+    -- this will exit shuttle mode, and play at that point
+    myo.keyboard("space", "press")
+end
+
+function onForegroundWindowChange(app, title)
+    wantActive = false
+
+    if platform == "MacOS" then
+        -- Case 1: Netflix in a non-fullscreen browser
+        if title == "Netflix" and (app == "com.apple.Safari" or app == "com.google.Chrome" or app == "org.mozilla.firefox") then
+            wantActive = true
+        -- Case 2: Netflix fullscreen on Firefox
+        elseif previousTitle and previousTitle == "Netflix" and app == "org.mozilla.plugincontainer" then
+            wantActive = true
+        -- Case 3: Netflix fullscreen on Safari
+        -- When going fullscreen on Safari, the title transitions from "Netflix" -> "" -> "Safari". The empty title is ignored.
+        elseif previousTitle and previousTitle == "Netflix" and title == "Safari" and app == "com.apple.Safari" then
+            wantActive = true
+        end
+
+    elseif platform == "Windows" then
+        local netflixRegex = "^Netflix[^%-]*%-.+"
+        -- Case 1: Netflix in browser - regex is to handle browser name appended to title
+        if (app == "Safari.exe" or app == "chrome.exe" or app == "firefox.exe" or app == "iexplore.exe" or app == "ApplicationFrameHost.exe") and string.match(title, netflixRegex) then
+            wantActive = true
+        -- Case 2: Netflix fullscreen on Firefox
+        -- When going fullscreen on Firefox, the title transitions from "Netflix - Mozilla Firefox" to "Microsoft Silverlight"
+        elseif previousTitle and string.match(previousTitle, netflixRegex) and app == "plugin-container.exe" and title == "Microsoft Silverlight" then
+            wantActive = true
+        end
+    end
+
+    -- We ignore blank titles since it's used to transition between two more useful window titles
+    if title ~= "" then
+        previousTitle = title
+    end
+
+    return wantActive
+end
+
+function activeAppName()
+    return "Netflix"
+end

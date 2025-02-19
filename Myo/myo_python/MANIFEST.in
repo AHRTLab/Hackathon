@@ -1,0 +1,7 @@
+include docs/*
+prune docs/_build
+prune docs/build
+
+include README.md
+include LICENSE.txt
+include requirements.txt

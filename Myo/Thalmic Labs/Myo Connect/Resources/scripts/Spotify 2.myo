@@ -1,0 +1,264 @@
+-- Base Class
+
+MediaPlayer = {}
+
+function MediaPlayer:new (o)
+    o = o or {}
+    setmetatable(o, self)
+    self.__index = self
+    return o
+end
+
+function MediaPlayer:playPause()
+    myo.keyboard("space", "press")
+end
+
+function MediaPlayer:volumeBurstUp()
+    if platform == "MacOS" then
+        myo.keyboard("up_arrow", "press", "command")
+    elseif platform == "Windows" then
+        myo.keyboard("up_arrow", "press", "control")
+    end
+end
+
+function MediaPlayer:volumeBurstDown()
+    if platform == "MacOS" then
+        myo.keyboard("down_arrow", "press", "command")
+    elseif platform == "Windows" then
+        myo.keyboard("down_arrow", "press", "control")
+    end
+end
+
+function MediaPlayer:shuttleJumpForward()
+    if platform == "MacOS" then
+        myo.keyboard("right_arrow", "press", "command", "alt")
+    elseif platform == "Windows" then
+        myo.keyboard("right_arrow", "press", "alt")
+    end
+end
+
+function MediaPlayer:shuttleJumpBackward()
+    if platform == "MacOS" then
+        myo.keyboard("left_arrow", "press", "command", "alt")
+    elseif platform == "Windows" then
+        myo.keyboard("left_arrow", "press", "alt")
+    end
+end
+
+function MediaPlayer:shuttleBurstForward()
+    if platform == "MacOS" then
+        myo.keyboard("right_arrow", "press", "command", "control")
+    elseif platform == "Windows" then
+        myo.keyboard("right_arrow", "press", "shift")
+    end
+end
+
+function MediaPlayer:shuttleBurstBackward()
+    if platform == "MacOS" then
+        myo.keyboard("left_arrow", "press", "command", "control")
+    elseif platform == "Windows" then
+        myo.keyboard("left_arrow", "press", "shift")
+    end
+end
+
+function MediaPlayer:enterShuttleMode()
+    -- Empty by default
+end
+
+function MediaPlayer:exitShuttleMode()
+    -- Empty by default
+end
+
+function MediaPlayer:enterShuttleBurstMode()
+    -- Empty by default
+end
+
+function MediaPlayer:exitShuttleBurstMode()
+    -- Empty by default
+end
+
+-- Helpers
+
+function getMyoRollDegrees()
+    local rollValue = math.deg(myo.getRoll())
+    return rollValue
+end
+
+function degreeDiff(value, base)
+    local diff = value - base
+
+    if diff > 180 then
+        diff = diff - 360
+    elseif diff < -180 then
+        diff = diff + 360
+    end
+
+    return diff
+end
+
+-- Effects
+
+function shuttleJump()
+    if shuttleDirection == "backward" then
+        currentPlayer:shuttleJumpBackward()
+    else
+        currentPlayer:shuttleJumpForward()
+    end
+end
+
+function shuttleBurst()
+    if shuttleDirection == "backward" then
+        currentPlayer:shuttleBurstBackward()
+    else
+        currentPlayer:shuttleBurstForward()
+    end
+end
+
+-- Triggers
+
+function onPoseEdge(pose, edge)
+    local now = myo.getTimeMilliseconds()
+
+    -- Play/pause
+    if edge == "on" and pose == "fingersSpread" then
+        currentPlayer:playPause()
+        myo.unlock("timed")
+        myo.notifyUserAction()
+    end
+
+    -- Shuttle controls
+    if pose == "waveIn" or pose == "waveOut" then
+
+        -- Swap Wave In/Out if Myo is on the left arm.
+        if myo.getArm() == "left" then
+            if pose == "waveIn" then
+                pose = "waveOut"
+            else
+                pose = "waveIn"
+            end
+        end
+
+        if pose == "waveIn" then
+            shuttleDirection = "backward"
+        else
+            shuttleDirection = "forward"
+        end
+
+        if edge == "on" then
+            shuttleState = "oneShot"
+            shuttleSince = now
+            currentPlayer:enterShuttleMode()
+            myo.unlock("hold")
+            myo.notifyUserAction()
+        end
+
+        if edge == "off" then
+            if shuttleState == "oneShot" then
+                shuttleJump()
+            end
+            shuttleState = nil
+            currentPlayer:exitShuttleMode()
+            currentPlayer:exitShuttleBurstMode()
+            myo.unlock("timed")
+            if shuttleState == "continuous" then
+                myo.notifyUserAction()
+            end
+        end
+    end
+
+    -- Volume controls
+    if pose == "fist" then
+        volumeActive = edge == "on"
+        rollReference = getMyoRollDegrees()
+        volumeSince = now
+        myo.unlock(edge == "on" and "hold" or "timed")
+        myo.notifyUserAction()
+    end
+end
+
+SHUTTLE_CONTINUOUS_TIMEOUT = 800
+SHUTTLE_CONTINUOUS_PERIOD = 250
+
+FAST_VOLUME_THRESHOLD = 34 -- degrees
+FAST_VOLUME_PERIOD = 100
+
+SLOW_VOLUME_THRESHOLD = 11.5 -- degrees
+SLOW_VOLUME_PERIOD = 330
+
+function onPeriodic()
+    local now = myo.getTimeMilliseconds()
+    if shuttleState then
+        if shuttleState == "oneShot" and (now - shuttleSince) > SHUTTLE_CONTINUOUS_TIMEOUT then
+            shuttleState = "continuous"
+            currentPlayer:enterShuttleBurstMode()
+        end
+
+        if shuttleState == "continuous" and (now - shuttleSince) > SHUTTLE_CONTINUOUS_PERIOD then
+            shuttleBurst()
+            shuttleSince = now
+        end
+    end
+
+    if volumeActive then
+        local relativeRoll = degreeDiff(getMyoRollDegrees(), rollReference)
+        if math.abs(relativeRoll) > FAST_VOLUME_THRESHOLD then
+            if now - volumeSince > FAST_VOLUME_PERIOD then
+                if relativeRoll > 0 then
+                    currentPlayer:volumeBurstUp()
+                else
+                    currentPlayer:volumeBurstDown()
+                end
+                volumeSince = now
+            end
+        elseif math.abs(relativeRoll) > SLOW_VOLUME_THRESHOLD then
+            if now - volumeSince > SLOW_VOLUME_PERIOD then
+                if relativeRoll > 0 then
+                    currentPlayer:volumeBurstUp()
+                else
+                    currentPlayer:volumeBurstDown()
+                end
+                volumeSince = now
+            end
+        end
+    end
+end
+
+function onActiveChange(isActive)
+    if not isActive then
+        shuttleState = nil
+        volumeActive = false
+    end
+end
+scriptId = 'com.thalmic.scripts.Spotify'
+scriptDetailsUrl = 'https://market.myo.com/app/5474cd1ae4b0361138df2aa1'
+scriptTitle = 'Spotify Connector'
+
+currentPlayer = MediaPlayer:new()
+
+function currentPlayer:shuttleJumpForward()
+    -- Skip to the next track
+    if platform == "MacOS" then
+        myo.keyboard("right_arrow", "press", "command")
+    elseif platform == "Windows" then
+        myo.keyboard("right_arrow", "press", "control")
+    end
+end
+
+function currentPlayer:shuttleJumpBackward()
+    -- Skip to the previous track
+    if platform == "MacOS" then
+        myo.keyboard("left_arrow", "press", "command")
+    elseif platform == "Windows" then
+        myo.keyboard("left_arrow", "press", "control")
+    end
+end
+
+function onForegroundWindowChange(app, title)
+    local uppercaseApp = string.upper(app)
+    return platform == "MacOS" and app == "com.spotify.client" or
+           platform == "Windows" and (uppercaseApp == "SPOTIFY.EXE" or uppercaseApp == "SPOTIFYBETA.EXE")
+end
+
+function activeAppName()
+    return "Spotify"
+end
