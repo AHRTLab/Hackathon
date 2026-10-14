@@ -1,3 +1,7 @@
+> **Legacy event (Myo + LSL data collection).** Moved here from the repo root when this repo became
+> the multi-event Hackathon repo. Run everything from *inside this folder* (`cd events/myo-lsl-legacy`),
+> because `main.py` reads `config.ini` and `run.cmd` uses paths relative to the current directory.
+
 # Myo Data Collection using LabStream
 
 Prerequisites
@@ -34,15 +38,4 @@ Follow the on-screen instructions for using the Myo
   interpreter to run `main.py`
 
 - Run main.py for data collection
-- myo/myo_data_collection.py is also useful to run/interact with 
-
-
-
-
-
-
-
-
-
-
-
+- myo/myo_data_collection.py is also useful to run/interact with
