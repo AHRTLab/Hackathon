@@ -1,0 +1,25 @@
+{
+  "name": "jackal-sim-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 4173 --strictPort",
+    "test": "vitest run",
+    "e2e": "playwright test"
+  },
+  "dependencies": {
+    "@mujoco/mujoco": "3.14.0",
+    "three": "0.170.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.53.0",
+    "@types/node": "22.15.30",
+    "@types/three": "0.170.0",
+    "typescript": "5.8.3",
+    "vite": "6.3.5",
+    "vitest": "3.2.4"
+  }
+}

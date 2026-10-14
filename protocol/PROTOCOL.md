@@ -55,13 +55,15 @@ LSL events: an optional stream `JackalAction`, type `Markers`, with 1 string cha
 | Rule | Value | What it means for you |
 |---|---|---|
 | Clamp | `|v| ≤ 2.0 m/s`, `|w| ≤ 4.0 rad/s` | Bigger values are not rejected; they are clamped. Courses may set lower caps |
-| Acceleration limit | about 2.0 m/s², 6.0 rad/s² | The robot ramps toward your command. `state.cmd_applied` shows what is actually applied |
+| Acceleration limit | speed up at ≤ 2.0 m/s² / 6.0 rad/s², brake at ≤ 4.0 m/s² / 12.0 rad/s² | The robot ramps toward your command. `state.cmd_applied` shows what is actually applied. E-stop is instant |
 | **Deadman** | **250 ms** | If no valid command arrives for 250 ms, the robot stops. **Keep sending, even when the value hasn't changed** (10–50 Hz is good) |
 | Rate | up to 100 Hz | Only the latest command is applied, once per 20 ms control tick |
 | Invalid messages | dropped | Missing fields, wrong types, `NaN`, `Infinity`: dropped, counted, never applied |
 | One active source | 1 s switch-over | The first sender after idle wins. Another sender is ignored until the active one has been silent for 1 s. `estop` and `reset` are accepted from **any** sender |
 
-(`V_MAX`/`W_MAX` follow the Jackal spec; staff are verifying them against `jackal_control/config/control.yaml`.)
+(`V_MAX`, `W_MAX` and the 250 ms timeout match the real Jackal's `jackal_control/config/control.yaml`:
+`max_velocity` 2.0 m/s and 4.0 rad/s, `cmd_vel_timeout` 0.25 s. The real robot accelerates harder; the sim's
+limits are gentler so it feels controllable.)
 
 ## 3. Reading state (closed-loop / assistive controllers)
 

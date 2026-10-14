@@ -1,0 +1,27 @@
+{
+  "model": "jackal.xml",
+  "files": [
+    "jackal.xml",
+    "meshes/jackal-base.stl",
+    "meshes/jackal-fender.stl",
+    "meshes/jackal-wheel.stl"
+  ],
+  "dims": {
+    "footprint_lwh_m": [
+      0.511,
+      0.43,
+      0.248
+    ],
+    "mass_kg": 18.43,
+    "wheel_radius_m": 0.098,
+    "track_m": 0.3756,
+    "wheelbase_m": 0.262,
+    "base_z_m": 0.0635,
+    "wheels": [
+      "front_left_wheel",
+      "front_right_wheel",
+      "rear_left_wheel",
+      "rear_right_wheel"
+    ]
+  }
+}
