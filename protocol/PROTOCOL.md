@@ -211,6 +211,9 @@ Have the bridge serve the page instead: run `jackal-bridge --serve-site --open` 
 `http://localhost:8765/Hackathon/` page it opens. It works in every browser, never shows the Chrome
 prompt, and keeps working offline (the first run downloads the site once, about 3 MB).
 
+**How do I see my Myo / EMG data, or record labeled training data?** Run `lsl-web-viewer --open`. It shows
+every LSL stream on your laptop with live plots and RMS bars, and records labeled takes to CSV.
+
 **How fast is "fast"?** `v = 2.0` is the cap. Start around `0.3–0.8` for indoor courses.
 
 ---

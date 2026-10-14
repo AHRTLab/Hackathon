@@ -19,5 +19,9 @@ that follow the contract in [`protocol/PROTOCOL.md`](../../protocol/PROTOCOL.md)
 | [`examples/autopilot_gates.py`](examples/autopilot_gates.py) | Reference closed-loop controller: drives L1–L3 by itself (pure pursuit through the gates, dock approach) |
 | [`examples/fake_myo_lsl.py`](examples/fake_myo_lsl.py) | Synthetic 8-ch EMG + IMU on LSL; `--emit-cmd` also drives the robot over LSL |
 
+**See your signals and record training data:** `lsl-web-viewer --open` shows every LSL stream on your
+laptop (Myo, BioRadio, `fake_myo_lsl.py`, your own classifier output, `JackalCmd` / `JackalState`) and records
+labeled takes as CSV, in the same format as the BioRadio GUI. Source: https://github.com/AHRTLab/lsl-web-viewer
+
 Then write your own controller against [`protocol/PROTOCOL.md`](../../protocol/PROTOCOL.md).
 BioRadio teams can reuse the LSL streaming code in [`../2026-bioradio/`](../2026-bioradio/).

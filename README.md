@@ -37,5 +37,7 @@ Live sim: https://ahrtlab.github.io/Hackathon/ (Chrome). Any browser, offline: `
 serves the same page from the bridge at http://localhost:8765/Hackathon/ (it uses `web/dist` if built, otherwise it
 downloads the published site once into `~/.cache/jackal-bridge/site`; refresh with `--update-site`).
 Deploy: `./scripts/deploy.sh`.
+Signals viewer / labeled recorder: [`lsl-web-viewer`](https://github.com/AHRTLab/lsl-web-viewer), a separate repo
+pinned in `environment.yml`; run `lsl-web-viewer --open` (http://localhost:8770/).
 
 See [`docs/BRIEF.md`](docs/BRIEF.md) for the design and milestones.
