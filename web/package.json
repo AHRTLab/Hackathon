@@ -8,7 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host 127.0.0.1 --port 4173 --strictPort",
     "test": "vitest run",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "e2e:chrome": "playwright test --project=chrome"
   },
   "dependencies": {
     "@mujoco/mujoco": "3.14.0",

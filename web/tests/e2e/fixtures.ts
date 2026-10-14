@@ -4,8 +4,9 @@ import { test as base, expect, type Page } from '@playwright/test';
 export const test = base.extend<{ errors: string[] }>({
   errors: async ({ page }, use) => {
     const errors: string[] = [];
-    // Chrome logs every refused WebSocket attempt while no bridge is running; that is expected.
-    const expected = /WebSocket connection to .* failed|ERR_CONNECTION_REFUSED/;
+    // Browsers log every refused WebSocket attempt while no bridge is running; that is expected.
+    // Chrome / WebKit: "WebSocket connection to 'ws://…' failed…"; Firefox: "… can’t establish a connection to the server at ws://…".
+    const expected = /WebSocket connection to .* failed|ERR_CONNECTION_REFUSED|establish a connection to the server at ws:/;
     page.on('console', (m) => { if (m.type() === 'error' && !expected.test(m.text())) errors.push(m.text()); });
     page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
     await use(errors);
