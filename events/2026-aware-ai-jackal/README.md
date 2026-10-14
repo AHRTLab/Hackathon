@@ -6,12 +6,13 @@ that follow the contract in [`protocol/PROTOCOL.md`](../../protocol/PROTOCOL.md)
 *(The full student guide arrives in M3. For now:)*
 
 1. Open the sim page in Chrome. It drives by keyboard (W/A/S/D) even with no bridge.
-2. `pip install -e 'bridge[lsl]'` from the repo root, then run `jackal-bridge` and leave it running.
+2. From the repo root: `conda env create -f environment.yml`, then `conda activate jackal`, then run `jackal-bridge` and leave it running.
 3. Send commands. The ready-made examples:
 
 | Example | What it shows |
 |---|---|
-| [`examples/keyboard_teleop.py`](examples/keyboard_teleop.py) | Minimal WebSocket command sender (`pip install websockets`) |
+| [`examples/keyboard_teleop.py`](examples/keyboard_teleop.py) | Hold-to-drive window (keys or a joystick) that sends through the bridge, the same feel as the sim page |
+| [`examples/terminal_teleop.py`](examples/terminal_teleop.py) | Smallest possible sender: tap keys in a terminal to step the speed (no window; works over SSH) |
 | [`examples/fake_myo_lsl.py`](examples/fake_myo_lsl.py) | Synthetic 8-ch EMG + IMU on LSL; `--emit-cmd` also drives the robot over LSL |
 
 Then write your own controller against [`protocol/PROTOCOL.md`](../../protocol/PROTOCOL.md).

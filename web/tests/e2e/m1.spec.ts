@@ -21,7 +21,7 @@ async function openWithBridge(page: Page, b: { port: number }): Promise<void> {
 }
 
 const teleop = (b: { port: number }, script: string) =>
-  run([`${EXAMPLES}/keyboard_teleop.py`, '--url', `ws://127.0.0.1:${b.port}/cmd`, '--script', script]);
+  run([`${EXAMPLES}/terminal_teleop.py`, '--url', `ws://127.0.0.1:${b.port}/cmd`, '--script', script]);
 
 /** Resolves (in-page) with ms until |applied v| < 0.05, or -1 after 2 s. */
 const msUntilStopped = (page: Page) => page.evaluate(() => new Promise<number>((ok) => {
@@ -34,7 +34,7 @@ const msUntilStopped = (page: Page) => page.evaluate(() => new Promise<number>((
   poll();
 }));
 
-test('T2: keyboard_teleop.py --script v=0.5 for 3 s moves the robot 1.2–1.6 m', async ({ page, bridge, errors }) => {
+test('T2: terminal_teleop.py --script v=0.5 for 3 s moves the robot 1.2–1.6 m', async ({ page, bridge, errors }) => {
   await openWithBridge(page, bridge);
   const p = await teleop(bridge, '0.5,0:3;0,0:1');
   expect(await p.exited).toBe(0);

@@ -1,0 +1,42 @@
+# Jackal hackathon environment: bridge + starter examples (students and staff).
+#
+#   conda env create -f environment.yml
+#   conda activate jackal
+#   jackal-bridge
+#
+# Apple Silicon Mac with an Intel (x86_64) Anaconda install? Everything here still works under Rosetta,
+# but you can create a native arm64 env instead:
+#   CONDA_SUBDIR=osx-arm64 conda env create -f environment.yml
+#   conda activate jackal && conda config --env --set subdir osx-arm64
+#
+# Update after a git pull:   conda env update -f environment.yml --prune
+# No conda? Plain pip works too:   pip install -e 'bridge[lsl]' pygame numpy
+#
+# The web sim needs nothing here: students open the hosted page in Chrome. Staff who build web/
+# need Node.js 20+ separately (see README.md).
+
+name: jackal
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip>=23.0
+
+  # Bridge
+  - websockets>=13
+  - jsonschema>=4.21
+
+  # LSL (Lab Streaming Layer): liblsl from conda-forge; the pylsl wheel below also bundles it
+  - liblsl>=1.16
+
+  # Starter examples
+  - numpy>=1.24
+  - pygame>=2.5
+
+  # Tests
+  - pytest>=8
+  - pytest-asyncio>=0.23
+
+  - pip:
+    - pylsl>=1.16
+    - -e ./bridge          # installs the `jackal-bridge` command
