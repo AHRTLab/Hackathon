@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jackal-bridge"
+version = "0.1.0"
+description = "AWARE-AI hackathon command bridge: LSL / UDP / WebSocket in -> browser Jackal sim out"
+requires-python = ">=3.10"
+dependencies = ["websockets>=13", "jsonschema>=4.21"]
+
+[project.optional-dependencies]
+lsl = ["pylsl>=1.16"]
+dev = ["pytest>=8", "pytest-asyncio>=0.23"]
+
+[project.scripts]
+jackal-bridge = "jackal_bridge.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["jackal_bridge*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

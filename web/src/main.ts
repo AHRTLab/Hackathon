@@ -4,11 +4,13 @@ import loadMujoco from '@mujoco/mujoco';
 import wasmUrl from '@mujoco/mujoco/mujoco.wasm?url';
 import { InputArbiter } from './input/arbiter';
 import { attachKeyboard } from './input/keyboard';
+import { BridgeClient } from './net/bridgeClient';
 import { ChaseCamera } from './render/cameras';
 import { SceneView } from './render/three';
 import type { Course } from './sim/course';
 import type { ModelFiles } from './sim/mujoco';
 import { Sim } from './sim/sim';
+import { ConnectionPanel } from './ui/connectionPanel';
 import { Controls, type CourseEntry } from './ui/controls';
 import { Hud } from './ui/hud';
 import manifest from '../../models/jackal/manifest.json';
@@ -47,13 +49,16 @@ async function main(): Promise<void> {
 
   const sim = Sim.create(mj, files, course, manifest.dims);
   const arbiter = new InputArbiter(sim.gate);
-  sim.onTick((now) => arbiter.tick(now));
+  const bridge = new BridgeClient(BridgeClient.defaultUrl(), sim);
+  sim.onTick((now) => { arbiter.bridgeActive = bridge.isActive(now); arbiter.tick(now); });
+  bridge.connect();
   attachKeyboard();
 
   const canvas = document.getElementById('view') as HTMLCanvasElement;
   const view = new SceneView(canvas, sim.model);
   const chase = new ChaseCamera(view.camera);
   const hud = new Hud();
+  const conn = new ConnectionPanel(bridge);
   new Controls(sim, index.courses, courseId, (id) => {
     params.set('course', id);
     location.search = params.toString(); // simplest correct course switch: reload with the new course
@@ -62,7 +67,7 @@ async function main(): Promise<void> {
   document.getElementById('loading')?.remove();
 
   // Test / debugging hooks (same idea as window.__mjswanRt in the telepresence repo).
-  Object.assign(window, { __sim: sim, __arbiter: arbiter, __view: view });
+  Object.assign(window, { __sim: sim, __arbiter: arbiter, __view: view, __bridge: bridge });
 
   let last = performance.now();
   const frame = (now: number) => {
@@ -72,6 +77,7 @@ async function main(): Promise<void> {
     view.sync(sim.data);
     chase.update(sim.state().pose, dt);
     hud.update(sim, arbiter.localSource ?? sim.gate.stats.lastSource);
+    conn.update(now);
     view.render();
     requestAnimationFrame(frame);
   };

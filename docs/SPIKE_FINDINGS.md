@@ -44,3 +44,18 @@ and `web/tests/e2e/m0.spec.ts` (5/5 in Chrome 154 on macOS arm64).
    on `localhost` (IPv6 vs IPv4).
 5. npm 11 blocks install scripts by default; esbuild works anyway via its platform optional
    dependency, so no approval is needed.
+
+## M1 findings (bridge)
+
+- **Port 8765 can already be taken.** On the dev Mac, `claude-science` listens on 127.0.0.1:8765 *and*
+  8766. 8765 is also the port in the `websockets` library's own examples, so collisions on student
+  laptops are plausible. The bridge now prints a clear fix (`--port <PORT>` + `?bridge=ws://localhost:<PORT>/sim`).
+  **Open decision:** keep 8765 (the brief's value), or freeze a less common default before teams start
+  coding against `protocol/v1`.
+- **RTT** is measured with a ping/pong on the 2 Hz `bridge_status` (`tb` → `pong`), not from
+  `cmd_echo_tb`, because state is only sent every 50 ms and that echo overstates latency. Measured RTT
+  on one laptop is about 1 ms.
+- **pylsl 1.18.5 (bundled liblsl 1.18) works under Rosetta x86_64 Python**, including the loopback
+  `JackalCmd` / `JackalAction` round trip in `bridge/tests/test_lsl.py` and the e2e LSL spec.
+- Chrome logs every refused WebSocket attempt while no bridge runs (reconnect backoff 0.5 → 5 s). That
+  is expected; the e2e "no console errors" check ignores just those lines.

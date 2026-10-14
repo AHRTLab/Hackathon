@@ -194,10 +194,10 @@ On `ws://localhost:8765/sim` (schema: [`link.schema.json`](link.schema.json)):
 - **bridge → browser:** forwarded commands carry everything the sender sent, plus `ingress`
   (`lsl|udp|ws`) and `tb` (bridge monotonic clock in seconds). Every 0.5 s the bridge also sends
   `{"type": "bridge_status", "active_source", "ingress", "deadman", "rate_hz", "drops_invalid",
-  "drops_rate", "drops_inactive", "rtt_ms", "lsl", "lsl_peers", "protocol_version"}`.
-- **browser → bridge:** `state` at 20 Hz, plus `cmd_echo_tb` (the last `tb` it applied). The bridge
-  computes the bridge↔browser round-trip time from `cmd_echo_tb` and fans `state` out to `/state`
-  subscribers.
+  "drops_rate", "drops_inactive", "rtt_ms", "lsl", "lsl_peers", "protocol_version", "tb"}`.
+- **browser → bridge:** `state` at 20 Hz (with `cmd_echo_tb`, the last `tb` it applied), which the bridge
+  fans out to `/state` subscribers. It also answers each `bridge_status` with `{"type": "pong", "tb": …}`,
+  and the bridge measures the bridge↔browser round-trip time from that.
 - The bridge never generates motion. When the active source goes silent, it simply stops forwarding,
   and the sim's own 250 ms deadman stops the robot. If the bridge itself dies, the same thing happens.
 

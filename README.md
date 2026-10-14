@@ -21,11 +21,16 @@ models/     Jackal MJCF + meshes, plus the reproducible URDF→MJCF converter
 docs/       platform design brief and spike findings
 ```
 
-Quickstart (once M0/M1 land):
+Quickstart (staff / development):
 
 ```bash
-cd web && npm install && npm run dev        # open the printed URL in Chrome
-pip install -e 'bridge[lsl]' && jackal-bridge
+cd web && npm install && npm run dev        # open the printed URL in Chrome; drive with W/A/S/D
+pip install -e 'bridge[lsl]'                # Python 3.10+, from the repo root
+jackal-bridge                               # then, in another terminal:
+python events/2026-aware-ai-jackal/examples/keyboard_teleop.py
 ```
+
+Tests: `cd web && npm test && npm run e2e` (vitest + Playwright in your installed Chrome) and
+`cd bridge && pytest`. Regenerate the robot model with `python models/jackal/convert.py` (needs `pip install xacro`).
 
 See [`docs/BRIEF.md`](docs/BRIEF.md) for the design and milestones.
