@@ -37,7 +37,13 @@ export class BridgeClient {
 
   static defaultUrl(): string {
     const p = new URLSearchParams(location.search).get('bridge');
-    return p || `ws://localhost:${LIMITS.ports.ws}${LIMITS.paths.sim}`;
+    if (p) return p;
+    // Served by `jackal-bridge --serve-site`: the bridge is this page's own origin (no mixed content,
+    // so Safari connects and Chrome doesn't ask for local-network permission).
+    if (document.querySelector('meta[name="jackal-bridge"][content="same-origin"]')) {
+      return `ws://${location.host}${LIMITS.paths.sim}`;
+    }
+    return `ws://localhost:${LIMITS.ports.ws}${LIMITS.paths.sim}`;
   }
 
   connect(url = this.url): void {

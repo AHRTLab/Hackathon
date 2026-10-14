@@ -23,6 +23,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ap.add_argument("--source", choices=["lsl", "udp", "ws"], help="only accept driving commands from this transport")
     ap.add_argument("--no-lsl", action="store_true", help="disable LSL ingress")
     ap.add_argument("--quiet", action="store_true", help="no live status line")
+    ap.add_argument("--serve-site", action="store_true",
+                    help="also serve the sim page at http://localhost:PORT/Hackathon/ (works in Safari, no Chrome prompt, offline)")
+    ap.add_argument("--site-dir", help="serve this built site folder instead of web/dist or the download cache")
+    ap.add_argument("--update-site", action="store_true", help="re-download the published site into the cache (implies --serve-site)")
+    ap.add_argument("--open", action="store_true", help="open the served sim page in your default browser (implies --serve-site)")
     ap.add_argument("--loopback-test", action="store_true", help="check a running bridge + open sim page, then exit")
     ap.add_argument("-v", "--verbose", action="store_true")
     return ap.parse_args(argv)
@@ -30,7 +35,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 async def run(args: argparse.Namespace) -> None:
     bridge = Bridge(arbiter=SourceArbiter(pin=args.source))
-    server = BridgeServer(bridge, args.host, args.port)
+    site = None
+    if args.serve_site or args.site_dir or args.update_site or args.open:
+        from .site import PREFIX, SiteError, SiteServer, resolve_site
+        try:
+            root = resolve_site(args.site_dir, update=args.update_site)
+        except SiteError as e:
+            sys.exit(f"jackal-bridge: {e}")
+        site = SiteServer(root, set(LIMITS["paths"].values()))
+        site_url = f"http://localhost:{args.port}{PREFIX}"
+    server = BridgeServer(bridge, args.host, args.port, site=site)
     udp = await start_udp(bridge, "127.0.0.1", args.udp_port)
     lsl = None
     if args.no_lsl:
@@ -48,6 +62,11 @@ async def run(args: argparse.Namespace) -> None:
               flush=True)
         if lsl is None:
             print(f"LSL {bridge.lsl_status}", flush=True)
+        if site is not None:
+            print(f"sim page: {site_url}   (serving {site.root})", flush=True)
+            if args.open:
+                import webbrowser
+                webbrowser.open(site_url)
         tasks = [asyncio.create_task(server.status_loop())]
         if not args.quiet:
             tasks.append(asyncio.create_task(console_loop(bridge, lambda: server.browser is not None)))

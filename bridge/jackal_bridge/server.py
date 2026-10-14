@@ -25,8 +25,9 @@ REPLACED_CODE = 4000  # the page stops auto-reconnecting on this code (web/src/n
 
 
 class BridgeServer:
-    def __init__(self, bridge: Bridge, host: str = "localhost", port: int = LIMITS["ports"]["ws"]):
+    def __init__(self, bridge: Bridge, host: str = "localhost", port: int = LIMITS["ports"]["ws"], site=None):
         self.bridge = bridge
+        self.site = site  # optional SiteServer (--serve-site): plain HTTP requests get the sim page
         self.host, self.port = host, port
         self.browser: ServerConnection | None = None
         self.state_subs: set[ServerConnection] = set()
@@ -96,5 +97,9 @@ class BridgeServer:
             await asyncio.sleep(0.5)
             self._send_browser(json.dumps(self.bridge.status()))
 
+    def _process_request(self, connection, request):
+        return self.site.handle(request) if self.site is not None else None
+
     def serve(self):
-        return serve(self.handler, self.host, self.port, max_size=2**16, ping_interval=5, ping_timeout=5)
+        return serve(self.handler, self.host, self.port, max_size=2**16, ping_interval=5, ping_timeout=5,
+                     process_request=self._process_request if self.site is not None else None)

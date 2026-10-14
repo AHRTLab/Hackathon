@@ -186,6 +186,12 @@ and the newest one wins. Close the extra tab, or click *Connect* in the tab you 
 **Chrome asks to "allow access to devices on your local network".** Click Allow. The page needs it to
 reach the bridge on localhost.
 
+**Safari (or Firefox) never connects to the bridge from the GitHub Pages site.** Browsers block a secure
+`https://` page from opening the plain `ws://localhost` connection, and Safari does it without a prompt.
+Have the bridge serve the page instead: run `jackal-bridge --serve-site --open` and use the
+`http://localhost:8765/Hackathon/` page it opens. It works in every browser, never shows the Chrome
+prompt, and keeps working offline (the first run downloads the site once, about 3 MB).
+
 **How fast is "fast"?** `v = 2.0` is the cap. Start around `0.3–0.8` for indoor courses.
 
 ---

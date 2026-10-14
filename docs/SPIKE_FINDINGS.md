@@ -63,3 +63,18 @@ and `web/tests/e2e/m0.spec.ts` (5/5 in Chrome 154 on macOS arm64).
   `JackalCmd` / `JackalAction` round trip in `bridge/tests/test_lsl.py` and the e2e LSL spec.
 - Chrome logs every refused WebSocket attempt while no bridge runs (reconnect backoff 0.5 → 5 s). That
   is expected; the e2e "no console errors" check ignores just those lines.
+
+## Hosting findings (first GitHub Pages deploy)
+
+- **Chrome** on `https://ahrtlab.github.io/Hackathon/` shows the Local Network Access prompt ("allow access to
+  apps/devices on your local network") before connecting to `ws://localhost`. Students must click Allow.
+- **Safari 26.6 blocks the https page → `ws://localhost` connection with no prompt.** Verified on the dev Mac:
+  from the Pages URL the bridge never saw a connection attempt; the same build served from
+  `http://localhost` connected immediately. GitHub Pages therefore cannot support Safari.
+- **Fix: `jackal-bridge --serve-site`.** The bridge also serves the sim page at
+  `http://localhost:8765/Hackathon/` (same origin as the WebSocket, so there's no mixed content and no Chrome prompt).
+  The page detects that it was served by the bridge (an injected `<meta name="jackal-bridge">`) and connects
+  back to its own host. Site source order: `--site-dir` → repo `web/dist` → the download cache, filled from
+  the `gh-pages` branch zip (about 2.6 MB download, 11 MB on disk). Verified in Safari with the real downloaded site.
+- The first Pages deploy showed a failed "deploy" job: GitHub started two runs 10 s apart (branch push
+  plus enabling Pages) and the second collided with the first. Harmless; the first run is what's live.

@@ -158,3 +158,22 @@ test('two sim tabs: the newer one takes the bridge and they do NOT keep kicking 
   await second.close();
   void errors;
 });
+
+test('--serve-site: the bridge serves the page itself; it connects same-origin with no ?bridge= and drives', async ({ page, errors }) => {
+  const { resolve } = await import('node:path');
+  const b = await startBridge(['--no-lsl', '--site-dir', resolve(EXAMPLES, '../../../web/dist')]);
+  try {
+    await page.goto(`http://127.0.0.1:${b.port}/`);                     // redirects to /Hackathon/
+    await expect(page).toHaveURL(new RegExp(`127\\.0\\.0\\.1:${b.port}/Hackathon/$`));
+    await page.waitForFunction(() => (window as any).__bridge?.link === 'open', null, { timeout: 60_000 });
+    expect(await page.evaluate(() => (window as any).__bridge.url)).toBe(`ws://127.0.0.1:${b.port}/sim`);
+    await page.waitForFunction(() => (window as any).__sim.time > 0.3, null, { timeout: 30_000 });
+    await page.evaluate(() => (window as any).__sim.reset());
+    const p = await teleop(b, '0.5,0:2;0,0:0.5');
+    expect(await p.exited).toBe(0);
+    expect((await simState(page)).pose.x).toBeGreaterThan(0.6);
+  } finally {
+    b.kill();
+  }
+  void errors;
+});

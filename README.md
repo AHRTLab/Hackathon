@@ -33,4 +33,9 @@ python events/2026-aware-ai-jackal/examples/keyboard_teleop.py # in a third: hol
 Tests: `cd web && npm test && npm run e2e` (vitest + Playwright in your installed Chrome) and
 `cd bridge && pytest` (plus `pytest events/2026-aware-ai-jackal/examples/tests`). Regenerate the robot model with `python models/jackal/convert.py` (needs `pip install xacro`).
 
+Live sim: https://ahrtlab.github.io/Hackathon/ (Chrome). Any browser, offline: `jackal-bridge --serve-site --open`
+serves the same page from the bridge at http://localhost:8765/Hackathon/ (it uses `web/dist` if built, otherwise it
+downloads the published site once into `~/.cache/jackal-bridge/site`; refresh with `--update-site`).
+Deploy: `./scripts/deploy.sh`.
+
 See [`docs/BRIEF.md`](docs/BRIEF.md) for the design and milestones.

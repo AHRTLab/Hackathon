@@ -5,7 +5,9 @@ that follow the contract in [`protocol/PROTOCOL.md`](../../protocol/PROTOCOL.md)
 
 *(The full student guide arrives in M3. For now:)*
 
-1. Open the sim page in Chrome. It drives by keyboard (W/A/S/D) even with no bridge.
+1. Open the sim page, https://ahrtlab.github.io/Hackathon/ in **Chrome** (click Allow when it asks about the local
+   network). It drives by keyboard (W/A/S/D) even with no bridge. **Safari, Firefox, or flaky wifi:** skip this
+   and use step 2 with `jackal-bridge --serve-site --open`, which serves the page from your own laptop.
 2. From the repo root: `conda env create -f environment.yml`, then `conda activate jackal`, then run `jackal-bridge` and leave it running.
 3. Send commands. The ready-made examples:
 
