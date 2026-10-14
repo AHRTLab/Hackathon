@@ -1,0 +1,23 @@
+# BioRadio Hackathon 2026
+#
+# Install: pip install -r requirements.txt
+
+# Core
+numpy>=1.24
+scipy>=1.11
+pandas>=2.0
+
+# GUI & Visualization
+pyqt6
+pyqtgraph>=0.13
+matplotlib>=3.7
+
+# BioRadio Communication
+pyserial>=3.5
+
+# Lab Streaming Layer
+pylsl
+liblsl>=1.16
+
+# Signal Processing
+neurokit2>=0.2

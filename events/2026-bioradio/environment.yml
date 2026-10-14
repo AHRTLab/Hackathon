@@ -1,0 +1,38 @@
+# BioRadio Hackathon 2026 Environment
+#
+# Installation:
+#   conda env create -f environment.yml
+#   conda activate hackathon
+#
+# Or with mamba (faster):
+#   mamba env create -f environment.yml
+
+name: hackathon
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  # Core Python
+  - python=3.11
+  - pip>=23.0
+
+  # Scientific Computing
+  - numpy>=1.24
+  - scipy>=1.11
+  - pandas>=2.0
+
+  # Visualization
+  - matplotlib>=3.7
+  - pyqtgraph>=0.13
+  - pyqt6
+
+  # LSL (Lab Streaming Layer)
+  - liblsl>=1.16
+
+  # Serial Communication (BioRadio)
+  - pyserial>=3.5
+
+  # Pip-only packages
+  - pip:
+    - pylsl
+    - neurokit2>=0.2
