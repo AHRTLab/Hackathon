@@ -37,6 +37,7 @@ export interface State {
   cmd_echo_t: number | null;
   status: Status;
   collisions: number;
+  scan?: { angle_min: number; angle_inc: number; range_max: number; ranges: number[] };
   course: null | { id: string; next_gate: number; gates_passed: number; elapsed: number; done: boolean };
   cmd_echo_tb?: number | null; // link-only: echo of the bridge's tb for RTT
 }

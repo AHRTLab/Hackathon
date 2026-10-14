@@ -23,6 +23,7 @@ export interface GateStats {
   lastSource: string | null;
   lastIngress: string | null;
   lastAction: string | null;
+  actionCount: number;      // increments on every command carrying an action (so repeats are visible)
   lastEchoT: number | null;
   lastEchoTb: number | null;
 }
@@ -48,7 +49,7 @@ export class CommandGate {
   private applied: Twist = { v: 0, w: 0 };
   private everCommanded = false;
   readonly stats: GateStats = {
-    received: 0, lastSource: null, lastIngress: null, lastAction: null, lastEchoT: null, lastEchoTb: null,
+    received: 0, lastSource: null, lastIngress: null, lastAction: null, actionCount: 0, lastEchoT: null, lastEchoTb: null,
   };
 
   constructor(limits: Limits = LIMITS, caps?: { v?: number | null; w?: number | null } | null) {
@@ -73,7 +74,7 @@ export class CommandGate {
     this.stats.received++;
     this.stats.lastSource = c.source ?? c.ingress ?? null;
     this.stats.lastIngress = c.ingress ?? null;
-    if (c.action) this.stats.lastAction = c.action;
+    if (c.action) { this.stats.lastAction = c.action; this.stats.actionCount++; }
     if (c.t !== undefined) this.stats.lastEchoT = c.t;
     if (c.tb !== undefined) this.stats.lastEchoTb = c.tb;
     if (c.estop) this.estopped = true;
