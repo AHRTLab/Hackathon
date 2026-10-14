@@ -10,6 +10,7 @@ import { SceneView } from './render/three';
 import type { Course } from './sim/course';
 import type { ModelFiles } from './sim/mujoco';
 import { Sim } from './sim/sim';
+import { startTicker } from './sim/ticker';
 import { ConnectionPanel } from './ui/connectionPanel';
 import { Controls, type CourseEntry } from './ui/controls';
 import { Hud } from './ui/hud';
@@ -69,15 +70,22 @@ async function main(): Promise<void> {
   // Test / debugging hooks (same idea as window.__mjswanRt in the telepresence repo).
   Object.assign(window, { __sim: sim, __arbiter: arbiter, __view: view, __bridge: bridge });
 
-  let last = performance.now();
+  // Physics runs on a worker-driven ticker so it keeps going in hidden tabs; rAF only renders.
+  let lastStep = performance.now();
+  startTicker(() => {
+    const now = performance.now();
+    sim.advance(Math.min(0.1, (now - lastStep) / 1000));
+    lastStep = now;
+  });
+
+  let lastFrame = performance.now();
   const frame = (now: number) => {
-    const dt = Math.min(0.1, (now - last) / 1000);
-    last = now;
-    sim.advance(dt);
+    const dt = Math.min(0.1, (now - lastFrame) / 1000);
+    lastFrame = now;
     view.sync(sim.data);
     chase.update(sim.state().pose, dt);
     hud.update(sim, arbiter.localSource ?? sim.gate.stats.lastSource);
-    conn.update(now);
+    conn.update(performance.now());
     view.render();
     requestAnimationFrame(frame);
   };

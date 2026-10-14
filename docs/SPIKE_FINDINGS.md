@@ -52,6 +52,10 @@ and `web/tests/e2e/m0.spec.ts` (5/5 in Chrome 154 on macOS arm64).
   laptops are plausible. The bridge now prints a clear fix (`--port <PORT>` + `?bridge=ws://localhost:<PORT>/sim`).
   **Open decision:** keep 8765 (the brief's value), or freeze a less common default before teams start
   coding against `protocol/v1`.
+- **Hidden tabs froze the sim (fixed).** Chrome pauses `requestAnimationFrame` in hidden/background tabs,
+  so with physics stepped from rAF, covering Chrome with a terminal froze the robot and the state stream
+  (`--loopback-test` failed). Physics now steps from a dedicated-worker timer (`web/src/sim/ticker.ts`),
+  which keeps firing in hidden tabs; rAF only renders. Verified: loopback PASS with the page hidden.
 - **RTT** is measured with a ping/pong on the 2 Hz `bridge_status` (`tb` → `pong`), not from
   `cmd_echo_tb`, because state is only sent every 50 ms and that echo overstates latency. Measured RTT
   on one laptop is about 1 ms.
