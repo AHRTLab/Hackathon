@@ -12,7 +12,10 @@ import type { BridgeStatus, State } from '../protocol/types';
 import { parseMsg } from '../protocol/validate';
 import type { Sim } from '../sim/sim';
 
-export type LinkState = 'connecting' | 'open' | 'closed';
+// 'replaced' = the bridge dropped us because another sim tab connected. We do NOT auto-reconnect then,
+// or two open tabs would keep kicking each other off; the user clicks Connect to take control back.
+export type LinkState = 'connecting' | 'open' | 'closed' | 'replaced';
+export const REPLACED_CODE = 4000; // bridge/jackal_bridge/server.py
 
 export class BridgeClient {
   url: string;
@@ -52,11 +55,12 @@ export class BridgeClient {
     this.ws = ws;
     ws.onopen = () => { this.link = 'open'; this.backoff = 500; };
     ws.onmessage = (ev) => this.onMessage(String(ev.data));
-    ws.onclose = () => {
+    ws.onclose = (ev) => {
       if (this.ws !== ws) return;
       this.ws = null;
-      this.link = 'closed';
       this.status = null;
+      if (ev.code === REPLACED_CODE) { this.link = 'replaced'; return; }
+      this.link = 'closed';
       this.timer = setTimeout(() => this.connect(), this.backoff);
       this.backoff = Math.min(5000, this.backoff * 2);
     };

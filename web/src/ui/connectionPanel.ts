@@ -37,11 +37,12 @@ export class ConnectionPanel {
   update(nowMs: number): void {
     const c = this.client, s = c.status;
     const [color, text] =
-      c.link !== 'open' ? ['#5f6368', c.link === 'connecting' ? 'Bridge: connecting…' : 'No bridge (keyboard / gamepad)']
+      c.link === 'replaced' ? ['#5f6368', 'Another sim tab is using the bridge']
+      : c.link !== 'open' ? ['#5f6368', c.link === 'connecting' ? 'Bridge: connecting…' : 'No bridge (keyboard / gamepad)']
       : s?.active_source ? (s.deadman ? ['#ff9800', 'Bridge: source silent (deadman)'] : ['#4caf50', 'Bridge: driving'])
       : ['#ffca28', 'Bridge connected, no source'];
     this.light.style.background = color;
-    this.light.dataset.state = c.link !== 'open' ? 'none' : s?.active_source ? 'active' : 'idle';
+    this.light.dataset.state = c.link === 'replaced' ? 'replaced' : c.link !== 'open' ? 'none' : s?.active_source ? 'active' : 'idle';
     this.label.textContent = text;
     if (c.link === 'open' && s) {
       const rtt = s.rtt_ms == null ? '–' : `${s.rtt_ms.toFixed(0)} ms`;
@@ -50,6 +51,8 @@ export class ConnectionPanel {
         `rate ${c.rateHz(nowMs)} Hz · rtt ${rtt}<br>` +
         `drops: invalid <b id="drops-invalid">${(s.drops_invalid ?? 0) + c.dropsInvalid}</b> · rate ${s.drops_rate ?? 0} · other source ${s.drops_inactive ?? 0}<br>` +
         `LSL ${s.lsl ?? '?'} · ${s.lsl_peers ?? 0} peer(s)`;
+    } else if (c.link === 'replaced') {
+      this.details.textContent = 'Only one sim tab can be connected. Close the other tab, or click Connect to take over here.';
     } else {
       this.details.textContent = '';
     }

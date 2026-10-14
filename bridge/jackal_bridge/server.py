@@ -21,6 +21,7 @@ from .protocol import LIMITS
 log = logging.getLogger("jackal_bridge")
 PATHS = LIMITS["paths"]
 _ids = itertools.count(1)
+REPLACED_CODE = 4000  # the page stops auto-reconnecting on this code (web/src/net/bridgeClient.ts)
 
 
 class BridgeServer:
@@ -56,7 +57,8 @@ class BridgeServer:
     async def _sim(self, ws: ServerConnection) -> None:
         old, self.browser = self.browser, ws
         if old is not None:
-            await old.close(code=4000, reason="replaced by a newer sim tab")
+            log.warning("a new sim tab connected; disconnecting the previous one (only one sim tab at a time)")
+            await old.close(code=REPLACED_CODE, reason="replaced by a newer sim tab")
         await ws.send(json.dumps(self.bridge.status()))
         try:
             async for raw in ws:

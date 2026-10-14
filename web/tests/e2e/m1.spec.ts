@@ -136,3 +136,25 @@ test('loopback: jackal-bridge --loopback-test passes against the open page', asy
   expect(code).toBe(0);
   void errors;
 });
+
+test('two sim tabs: the newer one takes the bridge and they do NOT keep kicking each other off', async ({ page, context, bridge, errors }) => {
+  await openWithBridge(page, bridge);
+  const second = await context.newPage();
+  await openWithBridge(second, bridge);
+  await expect(page.locator('#bridge-light')).toHaveAttribute('data-state', 'replaced');
+  // Watch both tabs for 3 s: the old one must stay off, the new one must stay connected throughout.
+  const sample = (p: Page) => p.evaluate(() => new Promise<string[]>((ok) => {
+    const seen = new Set<string>(); const t0 = performance.now();
+    const poll = () => { seen.add((window as any).__bridge.link); if (performance.now() - t0 < 3000) setTimeout(poll, 20); else ok([...seen]); };
+    poll();
+  }));
+  const [oldSeen, newSeen] = await Promise.all([sample(page), sample(second)]);
+  expect(oldSeen).toEqual(['replaced']);
+  expect(newSeen).toEqual(['open']);
+  // Clicking Connect on the old tab takes control back (and now the other tab yields).
+  await page.getByRole('button', { name: 'Connect' }).click();
+  await page.waitForFunction(() => (window as any).__bridge.link === 'open');
+  await expect(second.locator('#bridge-light')).toHaveAttribute('data-state', 'replaced');
+  await second.close();
+  void errors;
+});

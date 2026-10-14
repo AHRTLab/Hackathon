@@ -180,6 +180,9 @@ Stop the other sender, wait 1 s, and yours takes over. You can also pin a transp
 **Nothing happens and the HUD shows E-STOP.** Something sent `estop: true`. Send `{"type": "reset"}`
 or click *Clear E-stop*.
 
+**The panel says "Another sim tab is using the bridge".** Only one sim tab can be connected at a time,
+and the newest one wins. Close the extra tab, or click *Connect* in the tab you want to use.
+
 **Chrome asks to "allow access to devices on your local network".** Click Allow. The page needs it to
 reach the bridge on localhost.
 
