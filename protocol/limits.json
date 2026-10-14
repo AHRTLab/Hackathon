@@ -1,0 +1,22 @@
+{
+  "protocol_version": "1.0",
+  "V_MAX": 2.0,
+  "W_MAX": 4.0,
+  "A_V_MAX": 2.0,
+  "A_W_MAX": 6.0,
+  "DEADMAN_MS": 250,
+  "MAX_RATE_HZ": 100,
+  "CONTROL_HZ": 50,
+  "STATE_HZ": 20,
+  "SOURCE_SWITCH_SILENCE_MS": 1000,
+  "ports": { "ws": 8765, "udp": 9870 },
+  "paths": { "sim": "/sim", "cmd": "/cmd", "state": "/state" },
+  "lsl": {
+    "cmd": { "name": "JackalCmd", "type": "Control", "channels": 2 },
+    "action": { "name": "JackalAction", "type": "Markers" },
+    "state": { "name": "JackalState", "type": "State",
+               "channels": ["x", "y", "yaw", "v", "w", "v_cmd", "w_cmd", "collisions"] },
+    "scan": { "name": "JackalScan", "type": "Range", "channels": 180 },
+    "events": { "name": "JackalEvents", "type": "Markers" }
+  }
+}

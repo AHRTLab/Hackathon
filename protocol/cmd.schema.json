@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AHRTLab/Hackathon/protocol/v1/cmd.schema.json",
+  "title": "Jackal command (controller -> sim), protocol v1",
+  "description": "v/w outside [-V_MAX, V_MAX] / [-W_MAX, W_MAX] are valid and get CLAMPED, not dropped. Non-finite numbers are invalid. Extra fields are allowed so minor versions stay backward compatible.",
+  "oneOf": [
+    {
+      "title": "cmd",
+      "type": "object",
+      "required": ["type", "v", "w"],
+      "properties": {
+        "type": { "const": "cmd" },
+        "v": { "type": "number", "description": "Forward speed, m/s, body x. Positive = forward." },
+        "w": { "type": "number", "description": "Yaw rate, rad/s, body z. Positive = counter-clockwise (left)." },
+        "estop": { "type": "boolean", "default": false, "description": "Latched stop until a reset message or the UI button." },
+        "action": { "type": ["string", "null"], "maxLength": 64, "description": "Discrete event, e.g. \"horn\", \"mark\", \"mode:<name>\". Logged and shown in the HUD." },
+        "source": { "type": "string", "maxLength": 64, "description": "Free-form sender id, shown in the HUD and logged." },
+        "seq": { "type": "integer", "minimum": 0, "description": "Sender sequence number (lets the sim count drops)." },
+        "t": { "type": "number", "description": "Sender clock, seconds. Echoed back in state.cmd_echo_t." }
+      },
+      "additionalProperties": true
+    },
+    {
+      "title": "reset",
+      "type": "object",
+      "required": ["type"],
+      "properties": { "type": { "const": "reset" } },
+      "additionalProperties": true
+    }
+  ]
+}

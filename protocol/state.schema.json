@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AHRTLab/Hackathon/protocol/v1/state.schema.json",
+  "title": "Jackal state (sim -> controllers), protocol v1, 20 Hz",
+  "type": "object",
+  "required": ["type", "t", "pose", "vel", "cmd_applied", "status", "collisions"],
+  "properties": {
+    "type": { "const": "state" },
+    "t": { "type": "number", "description": "Sim time, seconds since page load / reset." },
+    "pose": {
+      "type": "object", "required": ["x", "y", "yaw"],
+      "properties": { "x": { "type": "number" }, "y": { "type": "number" }, "yaw": { "type": "number" } }
+    },
+    "vel": {
+      "type": "object", "required": ["v", "w"],
+      "properties": { "v": { "type": "number" }, "w": { "type": "number" } }
+    },
+    "cmd_applied": {
+      "type": "object", "required": ["v", "w"],
+      "description": "The command actually applied this tick, after clamp, deadman and acceleration limits.",
+      "properties": { "v": { "type": "number" }, "w": { "type": "number" } }
+    },
+    "cmd_echo_t": { "type": ["number", "null"], "description": "The t field of the last applied command, for sender-side latency." },
+    "status": { "enum": ["ok", "deadman", "estop", "idle", "finished"] },
+    "collisions": { "type": "integer", "minimum": 0 },
+    "scan": {
+      "type": "object",
+      "description": "Simulated 2D planar lidar, 180 beams over 270 degrees. Filled in from M2.",
+      "required": ["angle_min", "angle_inc", "range_max", "ranges"],
+      "properties": {
+        "angle_min": { "type": "number" },
+        "angle_inc": { "type": "number" },
+        "range_max": { "type": "number" },
+        "ranges": { "type": "array", "items": { "type": "number" }, "minItems": 180, "maxItems": 180 }
+      }
+    },
+    "course": {
+      "type": ["object", "null"],
+      "description": "Course progress; null in the sandbox. Filled in from M2.",
+      "required": ["id", "next_gate", "gates_passed", "elapsed", "done"],
+      "properties": {
+        "id": { "type": "string" },
+        "next_gate": { "type": "integer", "minimum": 0 },
+        "gates_passed": { "type": "integer", "minimum": 0 },
+        "elapsed": { "type": "number" },
+        "done": { "type": "boolean" }
+      }
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AHRTLab/Hackathon/protocol/v1/link.schema.json",
+  "title": "Internal bridge <-> browser messages on ws://localhost:8765/sim (teams never need these)",
+  "oneOf": [
+    {
+      "title": "forwarded cmd (bridge -> browser)",
+      "allOf": [{ "$ref": "cmd.schema.json" }],
+      "type": "object",
+      "required": ["ingress", "tb"],
+      "properties": {
+        "ingress": { "enum": ["lsl", "udp", "ws"] },
+        "tb": { "type": "number", "description": "Bridge monotonic clock (s) at forward time; the browser echoes it as cmd_echo_tb." }
+      }
+    },
+    {
+      "title": "bridge_status (bridge -> browser, 2 Hz)",
+      "type": "object",
+      "required": ["type", "active_source", "protocol_version"],
+      "properties": {
+        "type": { "const": "bridge_status" },
+        "protocol_version": { "type": "string" },
+        "active_source": { "type": ["string", "null"] },
+        "ingress": { "enum": ["lsl", "udp", "ws", null] },
+        "deadman": { "type": "boolean" },
+        "rate_hz": { "type": "number" },
+        "drops_invalid": { "type": "integer" },
+        "drops_rate": { "type": "integer" },
+        "drops_inactive": { "type": "integer" },
+        "rtt_ms": { "type": ["number", "null"] },
+        "lsl": { "type": "string", "description": "\"ok\", \"disabled: <reason>\"" },
+        "lsl_peers": { "type": "integer" }
+      }
+    },
+    {
+      "title": "state (browser -> bridge, 20 Hz)",
+      "allOf": [{ "$ref": "state.schema.json" }],
+      "properties": { "cmd_echo_tb": { "type": ["number", "null"] } }
+    }
+  ]
+}
