@@ -78,3 +78,14 @@ and `web/tests/e2e/m0.spec.ts` (5/5 in Chrome 154 on macOS arm64).
   the `gh-pages` branch zip (about 2.6 MB download, 11 MB on disk). Verified in Safari with the real downloaded site.
 - The first Pages deploy showed a failed "deploy" job: GitHub started two runs 10 s apart (branch push
   plus enabling Pages) and the second collided with the first. Harmless; the first run is what's live.
+
+## M2 findings
+
+- **`mj_multiRay` works in the JS bindings** with `IntBuffer` / `DoubleBuffer` out-params (note `GetView()`,
+  capital G; the package README says `getView`). Signature in 3.14: `(m, d, pnt, vec, geomgroup[6],
+  flg_static, bodyexclude, geomid, dist, normal, nray, cutoff)`. 180 beams take about 0.03 ms.
+- **Courses are verified completable in Node:** a TypeScript twin of `autopilot_gates.py` drives L1–L3
+  in real MuJoCo inside `npm test` (L1 18 s, L2 29 s, L3 20 s; 0 collisions, 0 missed gates), so a bad
+  course edit fails fast. The Python autopilot does the same through the real bridge in Playwright.
+- **HUD hardening:** text that comes from team controllers (`source`, `action`) is now HTML-escaped
+  before display.

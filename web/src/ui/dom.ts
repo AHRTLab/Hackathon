@@ -29,3 +29,8 @@ export function button(label: string, onClick: () => void, color = '#2d333c'): H
   b.addEventListener('keydown', (e) => { if (e.key === ' ') e.preventDefault(); }); // Space is "stop", not "click"
   return b;
 }
+
+/** Escape text that came from outside (e.g. a team controller's `source`) before using it in innerHTML. */
+export function esc(s: unknown): string {
+  return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+}

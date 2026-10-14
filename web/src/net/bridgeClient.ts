@@ -33,6 +33,9 @@ export class BridgeClient {
   constructor(url: string, private sim: Sim) {
     this.url = url;
     sim.onState((s) => this.sendState(s));
+    sim.onEvent((name, t) => {
+      if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify({ type: 'event', name, t }));
+    });
   }
 
   static defaultUrl(): string {

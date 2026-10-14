@@ -14,6 +14,9 @@ export class SceneView {
   readonly scene = new THREE.Scene();
   readonly camera = new THREE.PerspectiveCamera(60, 1, 0.05, 200);
   private geoms: { id: number; obj: THREE.Object3D }[] = [];
+  private byId = new Map<number, THREE.Mesh>();
+  private robotObjs: THREE.Object3D[] = [];
+  private scanLines: THREE.LineSegments;
   private collisionObjs: THREE.Object3D[] = [];
   private m4 = new THREE.Matrix4();
 
@@ -33,6 +36,13 @@ export class SceneView {
     this.scene.add(sun);
 
     this.build();
+    this.scanLines = new THREE.LineSegments(
+      new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(new Float32Array(180 * 6), 3)),
+      new THREE.LineBasicMaterial({ color: 0xff5252, transparent: true, opacity: 0.55 }),
+    );
+    this.scanLines.frustumCulled = false;
+    this.scanLines.visible = false;
+    this.scene.add(this.scanLines);
     this.resize();
     window.addEventListener('resize', () => this.resize());
   }
@@ -72,6 +82,8 @@ export class SceneView {
       if (isCollision) { mesh.visible = false; this.collisionObjs.push(mesh); }
       this.scene.add(mesh);
       this.geoms.push({ id: i, obj: mesh });
+      this.byId.set(i, mesh);
+      if (m.geom_bodyid[i] > 0) this.robotObjs.push(mesh); // world-body geoms are the course; the rest is the robot
       if (type === PLANE) this.addGrid(s[0], s[1]);
     }
   }
@@ -98,6 +110,34 @@ export class SceneView {
 
   showCollision(on: boolean): void { for (const o of this.collisionObjs) o.visible = on; }
 
+  /** Hide the robot's own meshes (FPV camera sits inside the chassis). */
+  setRobotVisible(on: boolean): void {
+    for (const o of this.robotObjs) if (!this.collisionObjs.includes(o)) o.visible = on;
+  }
+
+  setGeomColor(id: number, rgb: number, opacity?: number): void {
+    const mesh = this.byId.get(id);
+    if (!mesh) return;
+    const mat = mesh.material as THREE.MeshStandardMaterial;
+    mat.color.setHex(rgb);
+    if (opacity !== undefined) { mat.opacity = opacity; mat.transparent = opacity < 1; }
+  }
+
+  /** Draw lidar beams from `origin` (world) using a protocol scan; hidden when scan is null. */
+  setScan(scan: { angle_min: number; angle_inc: number; ranges: number[] } | null, origin: [number, number, number], yaw: number): void {
+    this.scanLines.visible = !!scan;
+    if (!scan) return;
+    const pos = this.scanLines.geometry.getAttribute('position') as THREE.BufferAttribute;
+    const arr = pos.array as Float32Array;
+    for (let i = 0; i < scan.ranges.length && i < 180; i++) {
+      const a = yaw + scan.angle_min + i * scan.angle_inc, r = scan.ranges[i];
+      arr.set([origin[0], origin[1], origin[2], origin[0] + r * Math.cos(a), origin[1] + r * Math.sin(a), origin[2]], 6 * i);
+    }
+    pos.needsUpdate = true;
+  }
+
+  get aspect(): number { return this.camera.aspect; }
+
   sync(data: MjData): void {
     const p = data.geom_xpos as Float64Array, R = data.geom_xmat as Float64Array;
     for (const { id, obj } of this.geoms) {
@@ -108,7 +148,7 @@ export class SceneView {
     }
   }
 
-  render(): void { this.renderer.render(this.scene, this.camera); }
+  render(camera: THREE.Camera = this.camera): void { this.renderer.render(this.scene, camera); }
 
   private resize(): void {
     const c = this.renderer.domElement;

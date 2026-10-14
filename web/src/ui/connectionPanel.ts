@@ -1,7 +1,7 @@
 // Connection panel: bridge URL, status light, active source, rate, drops, round-trip latency.
 
 import type { BridgeClient } from '../net/bridgeClient';
-import { button, el, panel } from './dom';
+import { button, el, esc, panel } from './dom';
 
 export class ConnectionPanel {
   private light: HTMLSpanElement;
@@ -47,10 +47,11 @@ export class ConnectionPanel {
     if (c.link === 'open' && s) {
       const rtt = s.rtt_ms == null ? '–' : `${s.rtt_ms.toFixed(0)} ms`;
       this.details.innerHTML =
-        `source <b>${s.active_source ?? '—'}</b>${s.ingress ? ` via ${s.ingress}` : ''}<br>` +
+        `source <b>${esc(s.active_source ?? '—')}</b>${s.ingress ? ` via ${esc(s.ingress)}` : ''}<br>` +
         `rate ${c.rateHz(nowMs)} Hz · rtt ${rtt}<br>` +
         `drops: invalid <b id="drops-invalid">${(s.drops_invalid ?? 0) + c.dropsInvalid}</b> · rate ${s.drops_rate ?? 0} · other source ${s.drops_inactive ?? 0}<br>` +
-        `LSL ${s.lsl ?? '?'} · ${s.lsl_peers ?? 0} peer(s)`;
+        `LSL ${esc(s.lsl ?? '?')} · ${Number(s.lsl_peers ?? 0)} peer(s)<br>` +
+        `<a href="http://localhost:8770/" target="_blank" rel="noopener" style="color:#8ab4f8">Signals viewer ↗</a> <span style="opacity:.55">(lsl-web-viewer --open)</span>`;
     } else if (c.link === 'replaced') {
       this.details.textContent = 'Only one sim tab can be connected. Close the other tab, or click Connect to take over here.';
     } else {

@@ -15,6 +15,8 @@ that follow the contract in [`protocol/PROTOCOL.md`](../../protocol/PROTOCOL.md)
 |---|---|
 | [`examples/keyboard_teleop.py`](examples/keyboard_teleop.py) | Hold-to-drive window (keys or a joystick) that sends through the bridge, the same feel as the sim page |
 | [`examples/terminal_teleop.py`](examples/terminal_teleop.py) | Smallest possible sender: tap keys in a terminal to step the speed (no window; works over SSH) |
+| [`examples/state_listener.py`](examples/state_listener.py) | Prints pose, nearest lidar obstacle, course progress and events from `/state` |
+| [`examples/autopilot_gates.py`](examples/autopilot_gates.py) | Reference closed-loop controller: drives L1–L3 by itself (pure pursuit through the gates, dock approach) |
 | [`examples/fake_myo_lsl.py`](examples/fake_myo_lsl.py) | Synthetic 8-ch EMG + IMU on LSL; `--emit-cmd` also drives the robot over LSL |
 
 Then write your own controller against [`protocol/PROTOCOL.md`](../../protocol/PROTOCOL.md).

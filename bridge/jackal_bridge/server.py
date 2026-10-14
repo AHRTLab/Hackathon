@@ -28,6 +28,7 @@ class BridgeServer:
     def __init__(self, bridge: Bridge, host: str = "localhost", port: int = LIMITS["ports"]["ws"], site=None):
         self.bridge = bridge
         self.site = site  # optional SiteServer (--serve-site): plain HTTP requests get the sim page
+        self.lsl_out = None  # optional LslOutlets: state / scan / events re-published on LSL
         self.host, self.port = host, port
         self.browser: ServerConnection | None = None
         self.state_subs: set[ServerConnection] = set()
@@ -74,6 +75,13 @@ class BridgeServer:
                     self.state_count += 1
                     if self.state_subs:
                         broadcast(self.state_subs, json.dumps(msg, separators=(",", ":")))
+                    if self.lsl_out is not None:
+                        self.lsl_out.push_state(msg)
+                elif t == "event" and isinstance(msg.get("name"), str):
+                    if self.state_subs:  # /state subscribers get events interleaved with state
+                        broadcast(self.state_subs, json.dumps(msg, separators=(",", ":")))
+                    if self.lsl_out is not None:
+                        self.lsl_out.push_event(msg["name"])
                 elif t == "pong" and isinstance(msg.get("tb"), (int, float)):
                     self.bridge.on_pong(msg["tb"])
         finally:

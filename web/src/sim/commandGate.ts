@@ -24,6 +24,7 @@ export interface GateStats {
   lastIngress: string | null;
   lastAction: string | null;
   actionCount: number;      // increments on every command carrying an action (so repeats are visible)
+  seqDrops: number;         // commands lost in transit, from gaps in each sender's `seq`
   lastEchoT: number | null;
   lastEchoTb: number | null;
 }
@@ -48,8 +49,9 @@ export class CommandGate {
   private estopped = false;
   private applied: Twist = { v: 0, w: 0 };
   private everCommanded = false;
+  private lastSeq = new Map<string, number>();
   readonly stats: GateStats = {
-    received: 0, lastSource: null, lastIngress: null, lastAction: null, actionCount: 0, lastEchoT: null, lastEchoTb: null,
+    received: 0, lastSource: null, lastIngress: null, lastAction: null, actionCount: 0, seqDrops: 0, lastEchoT: null, lastEchoTb: null,
   };
 
   constructor(limits: Limits = LIMITS, caps?: { v?: number | null; w?: number | null } | null) {
@@ -77,6 +79,12 @@ export class CommandGate {
     if (c.action) { this.stats.lastAction = c.action; this.stats.actionCount++; }
     if (c.t !== undefined) this.stats.lastEchoT = c.t;
     if (c.tb !== undefined) this.stats.lastEchoTb = c.tb;
+    if (c.seq !== undefined) {
+      const key = c.source ?? c.ingress ?? '?';
+      const prev = this.lastSeq.get(key);
+      if (prev !== undefined && c.seq > prev + 1 && c.seq - prev < 10_000) this.stats.seqDrops += c.seq - prev - 1;
+      this.lastSeq.set(key, c.seq);
+    }
     if (c.estop) this.estopped = true;
   }
 

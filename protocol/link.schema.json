@@ -124,6 +124,28 @@
           "type": "number"
         }
       }
+    },
+    {
+      "title": "event (browser -> bridge, as it happens)",
+      "type": "object",
+      "required": [
+        "type",
+        "name",
+        "t"
+      ],
+      "properties": {
+        "type": {
+          "const": "event"
+        },
+        "name": {
+          "type": "string",
+          "description": "run_start | gate:<k> | gate_missed:<k> | collision | deadman | estop | finish | dnf | action:<x>"
+        },
+        "t": {
+          "type": "number",
+          "description": "sim time (s)"
+        }
+      }
     }
   ]
 }

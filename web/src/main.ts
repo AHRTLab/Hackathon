@@ -5,7 +5,8 @@ import wasmUrl from '@mujoco/mujoco/mujoco.wasm?url';
 import { InputArbiter } from './input/arbiter';
 import { attachKeyboard } from './input/keyboard';
 import { BridgeClient } from './net/bridgeClient';
-import { ChaseCamera } from './render/cameras';
+import { CameraRig } from './render/cameras';
+import { typingInField } from './input/keys';
 import { SceneView } from './render/three';
 import type { Course } from './sim/course';
 import type { ModelFiles } from './sim/mujoco';
@@ -13,6 +14,8 @@ import { Sim } from './sim/sim';
 import { startTicker } from './sim/ticker';
 import { ConnectionPanel } from './ui/connectionPanel';
 import { Controls, type CourseEntry } from './ui/controls';
+import { CoursePanel } from './ui/coursePanel';
+import { RunLog } from './ui/runLog';
 import { Hud } from './ui/hud';
 import manifest from '../../models/jackal/manifest.json';
 
@@ -57,18 +60,26 @@ async function main(): Promise<void> {
 
   const canvas = document.getElementById('view') as HTMLCanvasElement;
   const view = new SceneView(canvas, sim.model);
-  const chase = new ChaseCamera(view.camera);
+  const cams = new CameraRig(view.camera, course.arena.size);
+  cams.onChange((m) => view.setRobotVisible(m !== 'fpv'));
+  view.setRobotVisible(cams.mode !== 'fpv');
+  window.addEventListener('keydown', (e) => {
+    if (!typingInField(e) && e.key.toLowerCase() === 'c' && !e.metaKey && !e.ctrlKey) cams.cycle();
+  });
   const hud = new Hud();
   const conn = new ConnectionPanel(bridge);
-  new Controls(sim, index.courses, courseId, (id) => {
+  const coursePanel = new CoursePanel(sim, view);
+  let controls: Controls | null = null;
+  const log = new RunLog(sim, bridge, () => controls?.teamInput.value.trim() ?? '');
+  controls = new Controls(sim, index.courses, courseId, (id) => {
     params.set('course', id);
     location.search = params.toString(); // simplest correct course switch: reload with the new course
-  });
+  }, cams, log);
   if (params.has('debug')) view.showCollision(true);
   document.getElementById('loading')?.remove();
 
   // Test / debugging hooks (same idea as window.__mjswanRt in the telepresence repo).
-  Object.assign(window, { __sim: sim, __arbiter: arbiter, __view: view, __bridge: bridge });
+  Object.assign(window, { __sim: sim, __arbiter: arbiter, __view: view, __bridge: bridge, __cams: cams, __log: log });
 
   // Physics runs on a worker-driven ticker so it keeps going in hidden tabs; rAF only renders.
   let lastStep = performance.now();
@@ -83,10 +94,14 @@ async function main(): Promise<void> {
     const dt = Math.min(0.1, (now - lastFrame) / 1000);
     lastFrame = now;
     view.sync(sim.data);
-    chase.update(sim.state().pose, dt);
+    const pose = sim.state().pose;
+    const sp = sim.data.site_xpos as Float64Array, fs = sim.fpvSite, ls = sim.lidarSite;
+    cams.update(pose, [sp[3 * fs], sp[3 * fs + 1], sp[3 * fs + 2]], dt, view.aspect);
+    view.setScan(cams.mode === 'top' ? sim.lastScan : null, [sp[3 * ls], sp[3 * ls + 1], sp[3 * ls + 2]], pose.yaw);
+    coursePanel.update();
     hud.update(sim, arbiter.localSource ?? sim.gate.stats.lastSource);
     conn.update(performance.now());
-    view.render();
+    view.render(cams.camera);
     requestAnimationFrame(frame);
   };
   requestAnimationFrame(frame);

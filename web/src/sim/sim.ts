@@ -19,7 +19,7 @@ import type { Course } from './course';
 import { Lidar, type Scan } from './lidar';
 import { RunTracker } from './run';
 import { applyTwist, readPose, readVel, resolveDriveIds, setPose, type DriveIds } from './drive';
-import { compileScene, type Mj, type ModelFiles } from './mujoco';
+import { compileScene, idOf, type Mj, type ModelFiles } from './mujoco';
 
 export interface JackalDims { wheel_radius_m: number; track_m: number }
 
@@ -35,6 +35,8 @@ export class Sim {
   readonly run: RunTracker;
   readonly lidar: Lidar;
   lastScan: Scan | null = null;
+  readonly fpvSite: number;
+  readonly lidarSite: number;
   readonly controlDt = 1 / LIMITS.CONTROL_HZ;
   readonly stateDt = 1 / LIMITS.STATE_HZ;
 
@@ -68,6 +70,8 @@ export class Sim {
     this.collisions = new CollisionCounter(this.ids.chassisGeom);
     this.run = new RunTracker(course);
     this.lidar = new Lidar(mj, model, data);
+    this.fpvSite = idOf(mj, model, 'site', 'fpv');
+    this.lidarSite = idOf(mj, model, 'site', 'lidar');
     this.reset();
   }
 

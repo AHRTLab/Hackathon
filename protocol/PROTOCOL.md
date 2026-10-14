@@ -81,9 +81,28 @@ Subscribe to `ws://localhost:8765/state` and you'll receive this at 20 Hz:
 - `pose` is in the world frame: metres, with `yaw` in radians (counter-clockwise from +x).
 - `scan` is a simulated 2D lidar: 180 beams over 270°, starting at `angle_min` (robot's right) and
   stepping counter-clockwise by `angle_inc`.
-- `course` is `null` in the sandbox.
-- *Coming in M2:* `scan`, `course`, and the LSL outlets `JackalState`, `JackalScan`, `JackalEvents`
-  (for recording EMG + robot state + task events in one XDF with LabRecorder).
+- `course` is `null` in the sandbox. `next_gate` is the index of the gate to take next; `done` is true
+  after the finish or a DNF.
+- The lidar origin is 0.12 m ahead of the robot centre, about 0.27 m above the floor.
+
+Events arrive on the same `/state` WebSocket as they happen, interleaved with state:
+
+```json
+{"type": "event", "name": "gate:3", "t": 14.72}
+```
+
+`name` is one of `run_start`, `gate:<k>`, `gate_missed:<k>`, `collision`, `deadman`, `estop`, `finish`,
+`dnf`, `action:<x>`. Send `"action": "restart"` in a command to put the robot back at the start and reset
+the clock, without touching the page.
+
+**LSL outlets** (published by the bridge when pylsl is installed), so LabRecorder can save your EMG,
+the robot state and the task events time-synced in one XDF:
+
+| Stream | Type | Channels |
+|---|---|---|
+| `JackalState` | State | 8 float32 `[x, y, yaw, v, w, v_cmd, w_cmd, collisions]`, 20 Hz |
+| `JackalScan` | Range | 180 float32 lidar ranges (m), 20 Hz |
+| `JackalEvents` | Markers | the event names above |
 
 ## 4. Copy-paste senders
 

@@ -3,7 +3,7 @@
 import { LIMITS } from '../protocol/limits';
 import type { Status } from '../protocol/types';
 import type { Sim } from '../sim/sim';
-import { el, panel } from './dom';
+import { el, esc, panel } from './dom';
 
 const STATUS_STYLE: Record<Status, [string, string]> = {
   ok: ['OK', '#2e7d32'], idle: ['IDLE', '#455a64'], deadman: ['DEADMAN', '#e65100'],
@@ -50,8 +50,8 @@ export class Hud {
     set(this.w, sim.applied.w, LIMITS.W_MAX, 'r/s');
     const s = sim.state();
     this.info.innerHTML =
-      `source <b>${source ?? '—'}</b><br>` +
+      `source <b>${esc(source ?? '—')}</b><br>` +
       `collisions <b id="hud-collisions">${s.collisions}</b> · t ${s.t.toFixed(1)} s<br>` +
-      `action ${sim.gate.stats.lastAction ?? '—'} · pose (${s.pose.x.toFixed(2)}, ${s.pose.y.toFixed(2)}, ${(s.pose.yaw * 180 / Math.PI).toFixed(0)}°)`;
+      `action ${esc(sim.gate.stats.lastAction ?? '—')} · pose (${s.pose.x.toFixed(2)}, ${s.pose.y.toFixed(2)}, ${(s.pose.yaw * 180 / Math.PI).toFixed(0)}°)`;
   }
 }

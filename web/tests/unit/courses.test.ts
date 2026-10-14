@@ -7,7 +7,7 @@ import { course, makeSim, ROOT, run } from './helpers';
 
 const index = JSON.parse(readFileSync(resolve(ROOT, 'web/public/courses/index.json'), 'utf8'));
 
-describe.each(index.courses.map((c: { id: string }) => c.id))('course %s', (id: string) => {
+describe.each(index.courses.map((c: { id: string }) => c.id) as string[])('course %s', (id: string) => {
   it('compiles, starts clear of obstacles, and reports course + scan in state', async () => {
     const sim = await makeSim(course(id));
     run(sim, 0.3);

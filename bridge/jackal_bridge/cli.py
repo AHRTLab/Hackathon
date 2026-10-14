@@ -55,6 +55,8 @@ async def run(args: argparse.Namespace) -> None:
         if ok:
             lsl = LslIngress(bridge, asyncio.get_running_loop())
             lsl.start()
+            from .egress.lsl_out import LslOutlets
+            server.lsl_out = LslOutlets()
     async with server.serve():
         print(f"jackal-bridge {PROTOCOL_VERSION}: browser ws://{args.host}:{args.port}/sim · "
               f"commands ws://{args.host}:{args.port}/cmd, udp 127.0.0.1:{args.udp_port}, LSL JackalCmd · "
