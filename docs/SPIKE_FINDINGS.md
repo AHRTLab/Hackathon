@@ -75,7 +75,7 @@ and `web/tests/e2e/m0.spec.ts` (5/5 in Chrome 154 on macOS arm64).
   `http://localhost:8765/Hackathon/` (same origin as the WebSocket, so there's no mixed content and no Chrome prompt).
   The page detects that it was served by the bridge (an injected `<meta name="jackal-bridge">`) and connects
   back to its own host. Site source order: `--site-dir` → repo `web/dist` → the download cache, filled from
-  the `gh-pages` branch zip (about 2.6 MB download, 11 MB on disk). Verified in Safari with the real downloaded site.
+  `site.zip` published with the site (about 2.6 MB download, 11 MB on disk). Verified in Safari with the real downloaded site.
 - The first Pages deploy showed a failed "deploy" job: GitHub started two runs 10 s apart (branch push
   plus enabling Pages) and the second collided with the first. Harmless; the first run is what's live.
 
@@ -89,3 +89,12 @@ and `web/tests/e2e/m0.spec.ts` (5/5 in Chrome 154 on macOS arm64).
   course edit fails fast. The Python autopilot does the same through the real bridge in Playwright.
 - **HUD hardening:** text that comes from team controllers (`source`, `action`) is now HTML-escaped
   before display.
+
+## Deployment: GitHub Actions from `main`
+
+- Publishing moved from a locally run `scripts/deploy.sh` (which pushed a built `gh-pages` branch) to
+  `.github/workflows/pages.yml`: every push to `main` runs `npm test`, builds with
+  `SITE_BASE=/<repo>/`, adds `site.zip` (for `jackal-bridge --serve-site`), and deploys. Pages source
+  must be set to **GitHub Actions**. If it's set to "Deploy from a branch: main", GitHub renders the
+  README as the site, which is exactly the "it's just READMEs" symptom we hit on 2026-10-15.
+- The old `gh-pages` branch is no longer used and can be deleted.

@@ -36,7 +36,8 @@ Tests: `cd web && npm test && npm run e2e` (vitest + Playwright in your installe
 Live sim: https://ahrtlab.github.io/Hackathon/ (Chrome). Any browser, offline: `jackal-bridge --serve-site --open`
 serves the same page from the bridge at http://localhost:8765/Hackathon/ (it uses `web/dist` if built, otherwise it
 downloads the published site once into `~/.cache/jackal-bridge/site`; refresh with `--update-site`).
-Deploy: `./scripts/deploy.sh`.
+Deploy: push to `main`. `.github/workflows/pages.yml` runs the unit tests, builds the site and publishes it
+(watch the Actions tab). Repo setting, once: Settings → Pages → Source: GitHub Actions.
 Signals viewer / labeled recorder: [`lsl-web-viewer`](https://github.com/AHRTLab/lsl-web-viewer), a separate repo
 pinned in `environment.yml`; run `lsl-web-viewer --open` (http://localhost:8770/).
 

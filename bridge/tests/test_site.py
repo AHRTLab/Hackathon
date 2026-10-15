@@ -122,6 +122,14 @@ def zip_server(tmp_path):
     httpd.shutdown()
 
 
+def test_download_flat_zip_like_pages_site_zip(zip_server, tmp_path):
+    www, base = zip_server
+    (www / "site.zip").write_bytes(make_zip({"index.html": INDEX, "assets/mujoco.wasm": b"\x00asm", "courses/L1.json": b"{}"}))
+    dest = tmp_path / "cache"
+    assert download_site(f"{base}/site.zip", dest) == dest
+    assert (dest / "index.html").read_bytes() == INDEX and (dest / "courses" / "L1.json").exists()
+
+
 def test_download_strips_github_top_folder(zip_server, tmp_path):
     www, base = zip_server
     (www / "site.zip").write_bytes(make_zip({

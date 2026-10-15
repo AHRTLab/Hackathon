@@ -8,8 +8,9 @@ because nothing loads from the internet after the first download.
 Where the site files come from (first match wins):
   1. --site-dir PATH                  an explicit built site (a folder containing index.html)
   2. <repo>/web/dist                  a local `npm run build` (staff machines)
-  3. the download cache               ~/.cache/jackal-bridge/site, filled from the published gh-pages
-                                      branch on first use (or with --update-site)
+  3. the download cache               ~/.cache/jackal-bridge/site, filled on first use (or with
+                                      --update-site) from site.zip on the published GitHub Pages site
+                                      (the Pages workflow bundles the built site into it)
 """
 from __future__ import annotations
 
@@ -30,7 +31,7 @@ from websockets.http11 import Request, Response
 log = logging.getLogger("jackal_bridge")
 
 PREFIX = "/Hackathon/"  # the GitHub Pages project path; the build uses the same base
-SITE_ZIP_URL = "https://github.com/AHRTLab/Hackathon/archive/refs/heads/gh-pages.zip"
+SITE_ZIP_URL = "https://ahrtlab.github.io/Hackathon/site.zip"  # built by .github/workflows/pages.yml
 REPO_DIST = Path(__file__).resolve().parents[2] / "web" / "dist"
 CACHE_DIR = Path(os.environ.get("JACKAL_SITE_CACHE") or Path.home() / ".cache" / "jackal-bridge" / "site")
 
@@ -52,7 +53,7 @@ def _is_site(d: Path) -> bool:
 
 
 def download_site(url: str = SITE_ZIP_URL, dest: Path = CACHE_DIR) -> Path:
-    """Fetch the published site (a zip of the gh-pages branch) into `dest`, replacing what was there."""
+    """Fetch the published site (site.zip from GitHub Pages) into `dest`, replacing what was there."""
     log.info("downloading the sim site from %s …", url)
     try:
         with urllib.request.urlopen(url, timeout=60) as r:
@@ -65,7 +66,7 @@ def download_site(url: str = SITE_ZIP_URL, dest: Path = CACHE_DIR) -> Path:
     except zipfile.BadZipFile:
         raise SiteError(f"{url} did not return a zip file") from None
     names = [n for n in zf.namelist() if not n.endswith("/")]
-    # GitHub zips wrap everything in one top folder ("Hackathon-gh-pages/"); strip it if present.
+    # If everything sits in one top folder (e.g. a GitHub branch zip, "Hackathon-gh-pages/"), strip it.
     tops = {n.split("/", 1)[0] for n in names}
     strip = (tops.pop() + "/") if len(tops) == 1 and all("/" in n for n in names) else ""
     tmp = Path(tempfile.mkdtemp(prefix="jackal-site-"))
