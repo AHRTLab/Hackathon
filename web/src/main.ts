@@ -36,7 +36,9 @@ async function fetchModelFiles(): Promise<ModelFiles> {
 
 const base = import.meta.env.BASE_URL;
 const getJson = async <T>(path: string): Promise<T> => {
-  const r = await fetch(`${base}${path}`);
+  // no-cache = always revalidate: course JSON keeps the same filename across deploys, and GitHub Pages
+  // otherwise lets browsers reuse a stale copy for 10 min (max-age=600) next to a fresh JS bundle.
+  const r = await fetch(`${base}${path}`, { cache: "no-cache" });
   if (!r.ok) throw new Error(`${path}: HTTP ${r.status}`);
   return r.json() as Promise<T>;
 };
