@@ -49,4 +49,20 @@ else
 fi
 
 OWNER="$(git config --get remote.origin.url | sed -E 's#.*[/:]([^/]+)/[^/]+$#\1#' | tr 'A-Z' 'a-z')"
-echo "==> Done. Once Pages is enabled (gh-pages / root): https://${OWNER}.github.io/${REPO_NAME}/"
+URL="https://${OWNER}.github.io/${REPO_NAME}/"
+
+# Verify GitHub Pages is serving THIS build. If Pages is set to build from `main` instead of `gh-pages`,
+# GitHub renders the README as the site (Jekyll), and nothing here can fix that; the setting must change.
+ASSET="$(grep -oE 'assets/index-[A-Za-z0-9_-]+\.js' web/dist/index.html | head -1)"
+echo "==> Waiting for ${URL} to serve this build (${ASSET}); up to 3 min…"
+for _ in $(seq 1 18); do
+  sleep 10
+  PAGE="$(curl -fsS "${URL}?nocache=$(date +%s)" 2>/dev/null || true)"
+  if printf '%s' "$PAGE" | grep -q "$ASSET"; then echo "==> Live: ${URL}"; exit 0; fi
+  if printf '%s' "$PAGE" | grep -q 'generator" content="Jekyll'; then
+    echo "!!  ${URL} is showing the README (Pages is building from main, not gh-pages)."
+    echo "!!  Fix: https://github.com/${OWNER}/${REPO_NAME}/settings/pages → Deploy from a branch → gh-pages, / (root) → Save."
+    exit 1
+  fi
+done
+echo "==> Not live yet (Pages can be slow, or not enabled). Check: https://github.com/${OWNER}/${REPO_NAME}/settings/pages (gh-pages, / root)."
