@@ -41,4 +41,5 @@ Deploy: push to `main`. `.github/workflows/pages.yml` runs the unit tests, build
 Signals viewer / labeled recorder: [`lsl-web-viewer`](https://github.com/AHRTLab/lsl-web-viewer), a separate repo
 pinned in `environment.yml`; run `lsl-web-viewer --open` (http://localhost:8770/).
 
+Running an event: [`docs/RUNBOOK.md`](docs/RUNBOOK.md) (deploy, pre-event checklist, day-of, data, troubleshooting).
 See [`docs/BRIEF.md`](docs/BRIEF.md) for the design and milestones.
