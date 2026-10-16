@@ -65,12 +65,12 @@ test('acceptance 7: JackalState / JackalScan / JackalEvents on LSL alongside a M
     await openCourse(page, b.port, 'L1-gates');
     // generate a few events while the probe listens
     const pilot = run([`${EXAMPLES}/autopilot_gates.py`, '--bridge', `ws://127.0.0.1:${b.port}`, '--timeout', '15']);
-    const probe = await run([resolve(dirname(fileURLToPath(import.meta.url)), 'lsl_probe.py'), 'JackalState', 'JackalScan', 'JackalEvents', 'MyoEMG']);
+    const probe = await run([resolve(dirname(fileURLToPath(import.meta.url)), 'lsl_probe.py'), 'JackalState', 'JackalScan', 'JackalEvents', 'Myo_EMG']);
     await probe.exited;
     const counts = JSON.parse(probe.out.join('').trim().split('\n').at(-1)!);
     expect(counts.JackalState).toBeGreaterThan(40);   // 20 Hz × 3 s
     expect(counts.JackalScan).toBeGreaterThan(40);
-    expect(counts.MyoEMG).toBeGreaterThan(400);       // 200 Hz × 3 s
+    expect(counts.Myo_EMG).toBeGreaterThan(400);       // 200 Hz × 3 s
     expect(counts.JackalEvents).toBeGreaterThan(0);   // run_start / gate:k during the window
     (await pilot).kill();
   } finally {
