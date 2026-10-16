@@ -39,6 +39,7 @@ dependencies:
 
   - pip:
     - pylsl>=1.16
+    - dl-myo               # Myo armband over the computer's own Bluetooth (myo_lsl_publisher.py)
     - -e ./bridge          # installs the `jackal-bridge` command
     # Signals viewer + labeled recorder (separate public repo, pinned so its changes can't break an event):
     - lsl-web-viewer @ git+https://github.com/AHRTLab/lsl-web-viewer@v0.2.0
