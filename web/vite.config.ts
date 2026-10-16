@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config'; // = vite's defineConfig, plus typing for the test: block
 
 // Static site: single-threaded MuJoCo WASM, so no COOP/COEP headers are needed (GitHub Pages friendly).
 // The app imports ../protocol/limits.json and ../models/jackal/* from the repo root, hence fs.allow.
