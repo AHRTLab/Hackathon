@@ -13,6 +13,7 @@
   "SOURCE_SWITCH_SILENCE_MS": 1000,
   "ports": { "ws": 8765, "udp": 9870 },
   "paths": { "sim": "/sim", "cmd": "/cmd", "state": "/state" },
+  "allowed_origins": ["https://ahrtlab.github.io"],
   "lsl": {
     "cmd": { "name": "JackalCmd", "type": "Control", "channels": 2 },
     "action": { "name": "JackalAction", "type": "Markers" },

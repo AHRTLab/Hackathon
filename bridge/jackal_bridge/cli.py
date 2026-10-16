@@ -28,6 +28,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ap.add_argument("--site-dir", help="serve this built site folder instead of web/dist or the download cache")
     ap.add_argument("--update-site", action="store_true", help="re-download the published site into the cache (implies --serve-site)")
     ap.add_argument("--open", action="store_true", help="open the served sim page in your default browser (implies --serve-site)")
+    ap.add_argument("--allow-origin", action="append", default=[], metavar="URL",
+                    help="also accept the sim page from this origin, e.g. https://yourorg.github.io (repeatable)")
     ap.add_argument("--loopback-test", action="store_true", help="check a running bridge + open sim page, then exit")
     ap.add_argument("-v", "--verbose", action="store_true")
     return ap.parse_args(argv)
@@ -44,7 +46,7 @@ async def run(args: argparse.Namespace) -> None:
             sys.exit(f"jackal-bridge: {e}")
         site = SiteServer(root, set(LIMITS["paths"].values()))
         site_url = f"http://localhost:{args.port}{PREFIX}"
-    server = BridgeServer(bridge, args.host, args.port, site=site)
+    server = BridgeServer(bridge, args.host, args.port, site=site, allowed_origins=args.allow_origin)
     udp = await start_udp(bridge, "127.0.0.1", args.udp_port)
     lsl = None
     if args.no_lsl:

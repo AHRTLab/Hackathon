@@ -4,6 +4,11 @@
           and bridge_status at 2 Hz; sends back state at 20 Hz (fanned out to /state) and pongs (RTT).
   /cmd    team controllers send command JSON here.
   /state  read-only subscribers get every state message the sim sends.
+
+Browsers send an Origin header with every WebSocket handshake, so the bridge only accepts browser
+connections from the sim's own origins: any localhost page, the page it serves itself (--serve-site),
+and limits.json `allowed_origins` (the GitHub Pages site) plus --allow-origin. Otherwise any website
+open in another tab could drive the robot. Scripts (no Origin header) are always allowed.
 """
 from __future__ import annotations
 
@@ -11,6 +16,8 @@ import asyncio
 import itertools
 import json
 import logging
+
+from urllib.parse import urlsplit
 
 from websockets.asyncio.server import ServerConnection, broadcast, serve
 from websockets.exceptions import ConnectionClosed
@@ -25,8 +32,10 @@ REPLACED_CODE = 4000  # the page stops auto-reconnecting on this code (web/src/n
 
 
 class BridgeServer:
-    def __init__(self, bridge: Bridge, host: str = "localhost", port: int = LIMITS["ports"]["ws"], site=None):
+    def __init__(self, bridge: Bridge, host: str = "localhost", port: int = LIMITS["ports"]["ws"], site=None,
+                 allowed_origins: list[str] | None = None):
         self.bridge = bridge
+        self.allowed_origins = {o.rstrip("/").lower() for o in [*LIMITS.get("allowed_origins", []), *(allowed_origins or [])]}
         self.site = site  # optional SiteServer (--serve-site): plain HTTP requests get the sim page
         self.lsl_out = None  # optional LslOutlets: state / scan / events re-published on LSL
         self.host, self.port = host, port
@@ -105,9 +114,24 @@ class BridgeServer:
             await asyncio.sleep(0.5)
             self._send_browser(json.dumps(self.bridge.status()))
 
+    def origin_ok(self, request) -> bool:
+        """Scripts (no Origin), localhost pages, the served site (Origin == Host), or the allow-list."""
+        origin = request.headers.get("Origin")
+        if not origin:
+            return True
+        o = urlsplit(origin)
+        if o.hostname in ("localhost", "127.0.0.1", "::1"):
+            return True
+        if o.netloc and o.netloc == request.headers.get("Host", ""):
+            return True
+        return origin.rstrip("/").lower() in self.allowed_origins
+
     def _process_request(self, connection, request):
+        if request.headers.get("Upgrade", "").lower() == "websocket" and not self.origin_ok(request):
+            log.warning("refused a WebSocket from origin %s (allow it with --allow-origin)", request.headers.get("Origin"))
+            return connection.respond(403, "This bridge only accepts the Jackal sim page (see --allow-origin)\n")
         return self.site.handle(request) if self.site is not None else None
 
     def serve(self):
         return serve(self.handler, self.host, self.port, max_size=2**16, ping_interval=5, ping_timeout=5,
-                     process_request=self._process_request if self.site is not None else None)
+                     process_request=self._process_request)

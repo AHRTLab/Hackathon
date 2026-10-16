@@ -229,6 +229,10 @@ On `ws://localhost:8765/sim` (schema: [`link.schema.json`](link.schema.json)):
 - **browser → bridge:** `state` at 20 Hz (with `cmd_echo_tb`, the last `tb` it applied), which the bridge
   fans out to `/state` subscribers. It also answers each `bridge_status` with `{"type": "pong", "tb": …}`,
   and the bridge measures the bridge↔browser round-trip time from that.
+- Browsers can only connect from the sim's own origins: any `localhost` page, the page the bridge
+  serves itself (`--serve-site`), or `allowed_origins` in `limits.json` (the GitHub Pages site). Add a
+  fork's site with `jackal-bridge --allow-origin https://yourorg.github.io`. Scripts and other
+  non-browser tools (no `Origin` header) are always accepted, so your controller is unaffected.
 - The bridge never generates motion. When the active source goes silent, it simply stops forwarding,
   and the sim's own 250 ms deadman stops the robot. If the bridge itself dies, the same thing happens.
 
