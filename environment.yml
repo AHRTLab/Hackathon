@@ -10,7 +10,7 @@
 #   conda activate jackal && conda config --env --set subdir osx-arm64
 #
 # Update after a git pull:   conda env update -f environment.yml --prune
-# No conda? Plain pip works too:   pip install -e 'bridge[lsl]' pygame numpy
+# No conda? Plain pip works too:   pip install -e 'bridge[lsl]' pygame numpy dl-myo pyxdf
 #
 # The web sim needs nothing here: students open the hosted page in Chrome. Staff who build web/
 # need Node.js 20+ separately (see README.md).
@@ -32,6 +32,7 @@ dependencies:
   # Starter examples
   - numpy>=1.24
   - pygame>=2.5
+  - pyxdf>=1.16           # load LabRecorder .xdf files
 
   # Tests
   - pytest>=8

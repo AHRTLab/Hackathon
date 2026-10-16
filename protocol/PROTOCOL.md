@@ -1,5 +1,8 @@
 # Jackal Command Protocol, v1
 
+> New here? Start with the [student guide](../events/2026-aware-ai-jackal/STUDENT_GUIDE.md); this page is the
+> full contract for when you write your own controller.
+
 This is the one contract every team's controller follows. Send commands that match it and your
 controller will drive the browser sim today and, later, the real lab Jackal without changes. The fields
 mirror ROS `geometry_msgs/Twist` (`linear.x` → `v`, `angular.z` → `w`).
@@ -44,7 +47,7 @@ To clear an e-stop, send:
 | Transport | Address | Best for |
 |---|---|---|
 | WebSocket | `ws://localhost:8765/cmd` | Python, JavaScript |
-| UDP | `127.0.0.1:9870`, one JSON message per datagram | MATLAB, C/C++, anything |
+| UDP | `127.0.0.1:9870`, one JSON message per datagram | C/C++, or anything else that can send UDP |
 | LSL | stream `JackalCmd`, type `Control`, **2 float32 channels `[v, w]`**, any rate (irregular is fine) | Teams already in LSL (Myo, BioRadio pipelines) |
 
 LSL events: an optional stream `JackalAction`, type `Markers`, with 1 string channel. Send `estop`,
@@ -146,17 +149,6 @@ outlet = StreamOutlet(StreamInfo("JackalCmd", "Control", 2, 0, cf_float32, "my-t
 for _ in range(40):
     outlet.push_sample([0.3, 0.0])   # [v, w]
     time.sleep(0.05)
-```
-
-**MATLAB, UDP** (R2020b+)
-
-```matlab
-u = udpport;
-for i = 1:40
-    msg = jsonencode(struct('type', 'cmd', 'v', 0.3, 'w', 0.0, 'source', 'my-team', 'seq', i));
-    write(u, uint8(msg), "127.0.0.1", 9870);
-    pause(0.05);
-end
 ```
 
 **JavaScript, WebSocket** (browser or Node 22+)

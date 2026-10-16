@@ -1,27 +1,27 @@
 # AWARE-AI Hackathon: Jackal Sim + Command Bridge
 
-Build your own controller for a Clearpath Jackal. The only rule is that your controller sends commands
-that follow the contract in [`protocol/PROTOCOL.md`](../../protocol/PROTOCOL.md).
+Build your own controller for a Clearpath Jackal, using your muscles (Myo), a gamepad, a classifier,
+anything, as long as it sends `(v, w)` commands.
 
-*(The full student guide arrives in M3. For now:)*
+**Start here: [STUDENT_GUIDE.md](STUDENT_GUIDE.md)**: install → drive in about 10 minutes → Myo → your
+own controller, plus the rules, scoring and troubleshooting.
 
-1. Open the sim page, https://ahrtlab.github.io/Hackathon/ in **Chrome** (click Allow when it asks about the local
-   network). It drives by keyboard (W/A/S/D) even with no bridge. **Safari, Firefox, or flaky wifi:** skip this
-   and use step 2 with `jackal-bridge --serve-site --open`, which serves the page from your own laptop.
-2. From the repo root: `conda env create -f environment.yml`, then `conda activate jackal`, then run `jackal-bridge` and leave it running.
-3. Send commands. The ready-made examples:
+Live sim (Chrome): https://ahrtlab.github.io/Hackathon/  ·  Contract: [`protocol/PROTOCOL.md`](../../protocol/PROTOCOL.md)
+
+## Examples
 
 | Example | What it shows |
 |---|---|
-| [`examples/keyboard_teleop.py`](examples/keyboard_teleop.py) | Hold-to-drive window (keys or a joystick) that sends through the bridge, the same feel as the sim page |
-| [`examples/terminal_teleop.py`](examples/terminal_teleop.py) | Smallest possible sender: tap keys in a terminal to step the speed (no window; works over SSH) |
-| [`examples/state_listener.py`](examples/state_listener.py) | Prints pose, nearest lidar obstacle, course progress and events from `/state` |
-| [`examples/autopilot_gates.py`](examples/autopilot_gates.py) | Reference closed-loop controller: drives L1–L3 by itself (pure pursuit through the gates, dock approach) |
-| [`examples/fake_myo_lsl.py`](examples/fake_myo_lsl.py) | Synthetic 8-ch EMG + IMU on LSL; `--emit-cmd` also drives the robot over LSL |
+| [`keyboard_teleop.py`](examples/keyboard_teleop.py) | Hold-to-drive window (keys, or a gamepad's left stick) that sends through the bridge |
+| [`terminal_teleop.py`](examples/terminal_teleop.py) | Smallest possible sender: tap keys in a terminal (no window; works over SSH) |
+| [`state_listener.py`](examples/state_listener.py) | Prints pose, nearest lidar obstacle, course progress and events |
+| [`controller_template.py`](examples/controller_template.py) | **Copy this:** fill in `my_input()` and `step()`; all the plumbing is done |
+| [`myo_lsl_publisher.py`](examples/myo_lsl_publisher.py) | Real Myo → LSL (`Myo_EMG`, `Myo_IMU`, `Myo_Events`) over built-in Bluetooth, with arm sync |
+| [`myo_threshold_controller.py`](examples/myo_threshold_controller.py) | Baseline EMG controller: calibrate, then fist = forward, flex / extend = turn. Beat it! |
+| [`fake_myo_lsl.py`](examples/fake_myo_lsl.py) | The same Myo streams with synthetic data (no armband needed) |
+| [`myo_check.py`](examples/myo_check.py) | Can this laptop find, connect to and vibrate a Myo? |
+| [`autopilot_gates.py`](examples/autopilot_gates.py) | Reference closed-loop controller that drives L1–L3 by itself |
 
-**See your signals and record training data:** `lsl-web-viewer --open` shows every LSL stream on your
-laptop (Myo, BioRadio, `fake_myo_lsl.py`, your own classifier output, `JackalCmd` / `JackalState`) and records
-labeled takes as CSV, in the same format as the BioRadio GUI. Source: https://github.com/AHRTLab/lsl-web-viewer
-
-Then write your own controller against [`protocol/PROTOCOL.md`](../../protocol/PROTOCOL.md).
-BioRadio teams can reuse the LSL streaming code in [`../2026-bioradio/`](../2026-bioradio/).
+**Signals and training data:** [`lsl-web-viewer`](https://github.com/AHRTLab/lsl-web-viewer) (installed
+with the env): `lsl-web-viewer --open` shows every LSL stream on your laptop and records labeled takes
+as CSV. BioRadio teams can reuse the LSL streaming code in [`../2026-bioradio/`](../2026-bioradio/).
