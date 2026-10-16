@@ -69,7 +69,8 @@ python events/2026-aware-ai-jackal/examples/state_listener.py
    ```bash
    lsl-web-viewer --open
    ```
-   Tick `Myo_EMG`. Make a fist and watch the RMS bars. Use **Record** for labeled takes (CSV), and
+   Tick `Myo_EMG`. Make a fist and watch the RMS bars. Tick `Myo_IMU` to see the band's 3-D
+   orientation (tilt and twist are usable as inputs too). Use **Record** for labeled takes (CSV), and
    **Change…** to choose the folder.
 4. Drive with the baseline EMG controller (it walks you through a 10-second calibration):
    ```bash

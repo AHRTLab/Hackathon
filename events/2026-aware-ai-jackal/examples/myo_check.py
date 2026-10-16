@@ -30,6 +30,31 @@ except ImportError:
     sys.exit("pip install dl-myo")
 
 
+def tolerate_short_service_uuids() -> None:
+    """Silence a harmless scan error on macOS. Some nearby phones / beacons advertise 32-bit service
+    UUIDs; bleak 0.20 (the version dl-myo requires) only expands 16-bit ones, so it raises inside its
+    scan callback ("badly formed hexadecimal UUID string") and prints a traceback for every such
+    advertisement. The scan still works; this just expands 32-bit UUIDs and keeps odd ones as text."""
+    try:
+        from bleak.backends.corebluetooth import utils as cbu  # macOS only
+    except Exception:
+        return
+    if getattr(cbu.normalize_uuid_str, "_tolerant", False):
+        return
+    original = cbu.normalize_uuid_str
+
+    def normalize(uuid: str) -> str:
+        if len(uuid) == 8:  # Bluetooth base UUID, 32-bit form
+            uuid = f"{uuid}-0000-1000-8000-00805f9b34fb"
+        try:
+            return original(uuid)
+        except ValueError:
+            return uuid.lower()
+
+    normalize._tolerant = True  # type: ignore[attr-defined]
+    cbu.normalize_uuid_str = normalize
+
+
 async def scan(bdaddr: bool) -> list[tuple[str, str, int | None]]:
     try:
         devs = await bleak.BleakScanner.discover(timeout=5.0, return_adv=True, cb=dict(use_bdaddr=bdaddr))
@@ -54,6 +79,7 @@ async def main() -> int:
     ap.add_argument("--addr", help="connect to this address instead of the first Myo found")
     ap.add_argument("--timeout", type=float, default=30.0)
     args = ap.parse_args()
+    tolerate_short_service_uuids()
 
     for step, bd in ((1, False), (2, True)):
         print(f"{step}. scan ({'real addresses' if bd else 'plain'}) …")

@@ -81,3 +81,16 @@ def test_modes_match_the_lab_meanings():
     assert pub.MODES["filtered"][0].name == "SEND_EMG" and pub.MODES["filtered"][1] == 200
     assert pub.MODES["raw"][0].name == "SEND_RAW" and pub.MODES["preprocessed"] == (pub.MODES["preprocessed"][0], 50)
     assert pub.MODES["preprocessed"][0].name == "SEND_FILT"
+
+
+def test_short_service_uuids_no_longer_crash_the_scan():
+    cbu = pytest.importorskip("bleak.backends.corebluetooth.utils")  # macOS backend only
+    pub.tolerate_short_service_uuids()
+    pub.tolerate_short_service_uuids()                                  # idempotent
+
+    class CBUUID:                                                       # what CoreBluetooth hands bleak
+        def __init__(self, s): self.s = s
+        def UUIDString(self): return self.s
+    assert cbu.cb_uuid_to_str(CBUUID("180F")) == "0000180f-0000-1000-8000-00805f9b34fb"      # 16-bit (worked before)
+    assert cbu.cb_uuid_to_str(CBUUID("0000FEAA")) == "0000feaa-0000-1000-8000-00805f9b34fb"  # 32-bit: used to raise
+    assert cbu.cb_uuid_to_str(CBUUID("Weird-Thing")) == "weird-thing"                        # anything else: kept

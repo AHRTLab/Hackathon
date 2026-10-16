@@ -48,6 +48,31 @@ MODES = {  # name → (Myo EMG mode, samples per second)
 IMU_LABELS = ["qw", "qx", "qy", "qz", "ax", "ay", "az", "gx", "gy", "gz"]
 
 
+def tolerate_short_service_uuids() -> None:
+    """Silence a harmless scan error on macOS. Some nearby phones / beacons advertise 32-bit service
+    UUIDs; bleak 0.20 (the version dl-myo requires) only expands 16-bit ones, so it raises inside its
+    scan callback ("badly formed hexadecimal UUID string") and prints a traceback for every such
+    advertisement. The scan still works; this just expands 32-bit UUIDs and keeps odd ones as text."""
+    try:
+        from bleak.backends.corebluetooth import utils as cbu  # macOS only
+    except Exception:
+        return
+    if getattr(cbu.normalize_uuid_str, "_tolerant", False):
+        return
+    original = cbu.normalize_uuid_str
+
+    def normalize(uuid: str) -> str:
+        if len(uuid) == 8:  # Bluetooth base UUID, 32-bit form
+            uuid = f"{uuid}-0000-1000-8000-00805f9b34fb"
+        try:
+            return original(uuid)
+        except ValueError:
+            return uuid.lower()
+
+    normalize._tolerant = True  # type: ignore[attr-defined]
+    cbu.normalize_uuid_str = normalize
+
+
 # ------------------------------------------------------------------------------------------- finding
 async def scan(timeout: float = 5.0) -> tuple[list[tuple[str, str, int]], bool]:
     """Nearby Myos as (name, address, rssi), strongest first, and whether addresses are real MACs.
@@ -222,6 +247,7 @@ def main() -> None:
     ap.add_argument("--timeout", type=float, default=20.0, help="seconds to wait for a connection")
     ap.add_argument("--quiet", action="store_true", help="no live sample-rate line")
     args = ap.parse_args()
+    tolerate_short_service_uuids()
     try:
         sys.exit(asyncio.run(list_myos() if args.list else run(args)))
     except KeyboardInterrupt:
