@@ -10,7 +10,8 @@ import type { Sim } from '../sim/sim';
 export const RUN_COLUMNS = [
   'run', 'timestamp', 'team', 'source', 'course', 'completed', 'elapsed', 'score_time', 'collisions',
   'missed_gates', 'gates_passed', 'path_length', 'smoothness', 'deadman_pct', 'drops', 'mean_latency_ms',
-  'latency_knob_ms', 'drop_knob_pct', 'rtlx',
+  'latency_knob_ms', 'drop_knob_pct', 'drop_seed', 'rtlx',
+  'rtlx_mental', 'rtlx_physical', 'rtlx_temporal', 'rtlx_performance', 'rtlx_effort', 'rtlx_frustration',
 ] as const;
 export type RunRow = Record<(typeof RUN_COLUMNS)[number], string | number>;
 
@@ -92,13 +93,26 @@ export class RunLog {
       deadman_pct: r.deadman_pct,
       drops: this.drops() - this.dropsAtStart,
       mean_latency_ms: this.rtt.length ? +(this.rtt.reduce((a, b) => a + b, 0) / this.rtt.length).toFixed(1) : '',
-      latency_knob_ms: '',  // M4
-      drop_knob_pct: '',    // M4
-      rtlx: '',             // M4
+      // the telepresence condition this run was driven under (fixed for the whole run)
+      latency_knob_ms: this.sim.impairment.latencyMs,
+      drop_knob_pct: this.sim.impairment.dropPct,
+      drop_seed: this.sim.impairment.seed,
+      rtlx: '', rtlx_mental: '', rtlx_physical: '', rtlx_temporal: '', rtlx_performance: '', rtlx_effort: '',
+      rtlx_frustration: '',
     };
     this.rows.push(row);
     this.traces.push({ run: row.run as number, course: r.course, rows: this.trace });
     for (const fn of this.listeners) fn(row);
+  }
+
+  /** Workload answers for a run (from the RTLX form), written into its row. */
+  setRtlx(run: number, scores: Record<string, number>): void {
+    const row = this.rows.find((r) => r.run === run);
+    if (!row) return;
+    row.rtlx = scores.rtlx;
+    for (const k of ['mental', 'physical', 'temporal', 'performance', 'effort', 'frustration']) {
+      (row as Record<string, string | number>)[`rtlx_${k}`] = scores[k];
+    }
   }
 
   runsCsv(): string { return toCsv(RUN_COLUMNS, this.rows); }

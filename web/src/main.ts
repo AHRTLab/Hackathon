@@ -16,6 +16,7 @@ import { ConnectionPanel } from './ui/connectionPanel';
 import { Controls, type CourseEntry } from './ui/controls';
 import { CoursePanel } from './ui/coursePanel';
 import { RunLog } from './ui/runLog';
+import { RtlxForm } from './ui/rtlx';
 import { Hud } from './ui/hud';
 import manifest from '../../models/jackal/manifest.json';
 
@@ -54,6 +55,9 @@ async function main(): Promise<void> {
   const course = await getJson<Course>(`courses/${courseId}.json`);
 
   const sim = Sim.create(mj, files, course, manifest.dims);
+  // Telepresence condition from the URL, e.g. ?latency=300&drop=10&seed=7 (reproducible studies)
+  const num = (k: string) => (params.has(k) && Number.isFinite(Number(params.get(k))) ? Number(params.get(k)) : undefined);
+  sim.setImpairment({ latencyMs: num('latency'), dropPct: num('drop'), seed: num('seed') });
   const arbiter = new InputArbiter((m, t) => sim.deliver(m, t));
   const bridge = new BridgeClient(BridgeClient.defaultUrl(), sim);
   sim.onTick((now) => { arbiter.bridgeActive = bridge.isActive(now); arbiter.tick(now); });
@@ -77,11 +81,20 @@ async function main(): Promise<void> {
     params.set('course', id);
     location.search = params.toString(); // simplest correct course switch: reload with the new course
   }, cams, log);
+  // Optional workload form after each finish / DNF; answers go into that run's CSV row.
+  const rtlx = new RtlxForm();
+  log.onRow(async (row) => {
+    if (!controls?.askRtlx.checked) return;
+    arbiter.paused = true;
+    const scores = await rtlx.ask(`run ${row.run}, ${row.course}`);
+    arbiter.paused = false;
+    if (scores) log.setRtlx(row.run as number, scores);
+  });
   if (params.has('debug')) view.showCollision(true);
   document.getElementById('loading')?.remove();
 
   // Test / debugging hooks (same idea as window.__mjswanRt in the telepresence repo).
-  Object.assign(window, { __sim: sim, __arbiter: arbiter, __view: view, __bridge: bridge, __cams: cams, __log: log });
+  Object.assign(window, { __sim: sim, __arbiter: arbiter, __view: view, __bridge: bridge, __cams: cams, __log: log, __rtlx: rtlx });
 
   // Physics runs on a worker-driven ticker so it keeps going in hidden tabs; rAF only renders.
   let lastStep = performance.now();

@@ -49,7 +49,11 @@ export class Hud {
     set(this.v, sim.applied.v, LIMITS.V_MAX, 'm/s');
     set(this.w, sim.applied.w, LIMITS.W_MAX, 'r/s');
     const s = sim.state();
-    this.info.innerHTML =
+    const imp = sim.impairment;
+    const badge = imp.active
+      ? `<span id="hud-impairment" style="background:#5d4037;padding:1px 6px;border-radius:8px">⏱ ${imp.latencyMs} ms · ${imp.dropPct} % drop</span><br>`
+      : '';
+    this.info.innerHTML = badge +
       `source <b>${esc(source ?? '—')}</b><br>` +
       `collisions <b id="hud-collisions">${s.collisions}</b> · t ${s.t.toFixed(1)} s<br>` +
       `action ${esc(sim.gate.stats.lastAction ?? '—')} · pose (${s.pose.x.toFixed(2)}, ${s.pose.y.toFixed(2)}, ${(s.pose.yaw * 180 / Math.PI).toFixed(0)}°)`;

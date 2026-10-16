@@ -9,6 +9,8 @@ import { keyboardTwist } from './keyboard';
 export class InputArbiter {
   /** Set by the bridge client: true while a bridge source is active. */
   bridgeActive = false;
+  /** Local input ignored (e.g. while the workload form is open). */
+  paused = false;
   localSource: 'keyboard' | 'gamepad' | null = null;
   private wasEngaged = false;
 
@@ -16,7 +18,7 @@ export class InputArbiter {
   constructor(private deliver: (msg: Cmd, nowMs: number) => void) {}
 
   tick(nowMs: number): void {
-    if (this.bridgeActive) { this.localSource = null; this.wasEngaged = false; return; }
+    if (this.bridgeActive || this.paused) { this.localSource = null; this.wasEngaged = false; return; }
     let tw: Twist | null = gamepadTwist();
     let src: 'keyboard' | 'gamepad' = 'gamepad';
     if (!tw) { tw = keyboardTwist(); src = 'keyboard'; }
