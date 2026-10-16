@@ -109,7 +109,7 @@ export class BridgeClient {
     const r = parseMsg(raw);
     if (!r.ok) { this.dropsInvalid++; return; }
     const now = performance.now();
-    this.sim.gate.ingest(r.msg, now);
+    this.sim.deliver(r.msg, now);
     if (r.msg.type === 'cmd') { this.lastCmdMs = now; this.rxCmds++; this.rateWindow.push(now); }
   }
 

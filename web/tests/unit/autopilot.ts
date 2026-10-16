@@ -32,7 +32,8 @@ export function waypoints(c: Course): P[] {
 export class Autopilot {
   private wp: P[];
   private i = 0;
-  constructor(private c: Course, private vmax = 1.2, private wmax = 2.5) {
+  /** kw = steering gain (w = kw · heading error). 2.5 suits no latency; lower it when commands are delayed. */
+  constructor(private c: Course, private vmax = 1.2, private wmax = 2.5, private kw = 2.5) {
     this.wp = waypoints(c);
     const cap = c.speed_caps;
     if (cap?.v) this.vmax = Math.min(this.vmax, cap.v);
@@ -58,7 +59,7 @@ export class Autopilot {
     const dx = tx - x, dy = ty - y;
     if (Math.hypot(dx, dy) < 0.3) { this.i++; return this.step(s); }
     const a = wrap(Math.atan2(dy, dx) - yaw);
-    const w = clamp(2.5 * a, this.wmax);
+    const w = clamp(this.kw * a, this.wmax);
     const v = Math.abs(a) > 0.8 ? 0 : this.vmax * Math.cos(a) ** 2;
     return { v, w };
   }

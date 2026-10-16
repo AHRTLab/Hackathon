@@ -54,7 +54,7 @@ async function main(): Promise<void> {
   const course = await getJson<Course>(`courses/${courseId}.json`);
 
   const sim = Sim.create(mj, files, course, manifest.dims);
-  const arbiter = new InputArbiter(sim.gate);
+  const arbiter = new InputArbiter((m, t) => sim.deliver(m, t));
   const bridge = new BridgeClient(BridgeClient.defaultUrl(), sim);
   sim.onTick((now) => { arbiter.bridgeActive = bridge.isActive(now); arbiter.tick(now); });
   bridge.connect();

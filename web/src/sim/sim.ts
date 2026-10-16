@@ -12,10 +12,11 @@
 
 import type { MjData, MjModel } from '@mujoco/mujoco';
 import { LIMITS } from '../protocol/limits';
-import type { State, Status, Twist } from '../protocol/types';
+import type { Cmd, Reset, State, Status, Twist } from '../protocol/types';
 import { CollisionCounter } from './collisions';
 import { CommandGate } from './commandGate';
 import type { Course } from './course';
+import { Impairment, type ImpairmentSettings } from './impairment';
 import { Lidar, type Scan } from './lidar';
 import { RunTracker } from './run';
 import { applyTwist, readPose, readVel, resolveDriveIds, setPose, type DriveIds } from './drive';
@@ -33,6 +34,8 @@ export class Sim {
   readonly ids: DriveIds;
   readonly collisions: CollisionCounter;
   readonly run: RunTracker;
+  readonly impairment = new Impairment();
+  private pendingImpairment: Partial<ImpairmentSettings> | null = null;
   readonly lidar: Lidar;
   lastScan: Scan | null = null;
   readonly fpvSite: number;
@@ -88,6 +91,8 @@ export class Sim {
     this.gate.resetMotion();
     this.collisions.reset();
     this.run.reset();
+    if (this.pendingImpairment) { this.impairment.configure(this.pendingImpairment); this.pendingImpairment = null; }
+    else this.impairment.restart();
     this.lastScan = null;
     this.lastActionCount = this.gate.stats.actionCount;
     this.applied = { v: 0, w: 0 };
@@ -99,6 +104,21 @@ export class Sim {
   }
 
   onTick(fn: (nowMs: number) => void): void { this.tickHooks.push(fn); }
+
+  /** Every input delivers commands here (not to the gate directly), so the impairment applies to all. */
+  deliver(msg: Cmd | Reset, nowMs: number = this.clock()): void {
+    if (!this.impairment.active) { this.gate.ingest(msg, nowMs); return; }
+    this.impairment.offer(msg, nowMs);
+  }
+
+  /** Change latency / drop. Applied now unless a run is in progress (then at the next reset), so every
+   *  scored run has a single condition. Returns true if applied immediately. */
+  setImpairment(s: Partial<ImpairmentSettings>): boolean {
+    if (this.run.phase === 'running') { this.pendingImpairment = { ...this.pendingImpairment, ...s }; return false; }
+    this.impairment.configure(s);
+    this.pendingImpairment = null;
+    return true;
+  }
   onState(fn: (s: State) => void): void { this.stateListeners.push(fn); }
   onEvent(fn: (name: string, t: number) => void): void { this.eventListeners.push(fn); }
 
@@ -136,6 +156,7 @@ export class Sim {
   private controlTick(): void {
     const now = this.clock();
     for (const fn of this.tickHooks) fn(now);
+    for (const { msg, at } of this.impairment.release(now)) this.gate.ingest(msg, at);
     const out = this.gate.tick(now, this.controlDt);
     this.applied = out.applied;
     this.target = out.target;
