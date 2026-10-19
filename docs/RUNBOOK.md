@@ -13,6 +13,10 @@ design notes and every quirk we hit are in [`SPIKE_FINDINGS.md`](SPIKE_FINDINGS.
 - **Courses:** edit or add `web/public/courses/*.json` (format: `web/public/courses/README.md`;
   L1–L3 come from `web/scripts/make_courses.py`). `npm test` (and CI) fails if a course doesn't compile,
   starts in a collision, or can't be completed by the reference autopilot.
+- **Staff-only material** (the baseline `myo_threshold_controller.py` students must beat, its tests and
+  calibration fixture) lives in `events/2026-aware-ai-jackal/staff/`, which is **gitignored**: it is never
+  pushed and a fresh clone doesn't have it. Keep a private copy (lab drive or a private repo). Its e2e test
+  skips itself where the folder is missing. Run its unit tests with `pytest -q staff`.
 - **lsl-web-viewer** is its own repo (https://github.com/AHRTLab/lsl-web-viewer). Releases are git tags;
   `environment.yml` here pins one (currently `v0.2.0`). To ship a viewer change, tag a new version there,
   push the tag, then update the pin.
@@ -45,7 +49,7 @@ design notes and every quirk we hit are in [`SPIKE_FINDINGS.md`](SPIKE_FINDINGS.
 **Start order on each laptop** (separate terminals, all `conda activate jackal`, all in `Hackathon/`):
 1. `jackal-bridge --serve-site --open`: the sim opens. Pick the course.
 2. The input: `myo_lsl_publisher.py` (real Myo) or `fake_myo_lsl.py`. Then `lsl-web-viewer --open` to check signals.
-3. The team's controller (or `myo_threshold_controller.py`, `keyboard_teleop.py`, …).
+3. The team's controller (or `myo_emg_example.py`, `keyboard_teleop.py`, …).
 
 **Reading the sim page:**
 

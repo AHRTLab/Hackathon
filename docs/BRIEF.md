@@ -203,7 +203,7 @@ Each example is short, commented, and runnable on its own:
 | `gamepad_teleop.py` | Joystick axes to `(v, w)` with deadzone and expo curve |
 | `fake_myo_lsl.py` | Publishes synthetic 8-channel EMG (200 Hz) + IMU as LSL; lets teams build without hardware |
 | `myo_lsl_publisher.py` | Real Myo to LSL (raw EMG + IMU). See risk 1 |
-| `myo_threshold_controller.py` | Baseline: EMG RMS per channel group to `(v, w)`; publishes `JackalCmd` |
+| `myo_emg_example.py` | Minimal read → feature → decide → send example. (The baseline `myo_threshold_controller.py` is staff-only, gitignored under `staff/`) |
 | `state_listener.py` | Subscribes to state and prints pose, scan minimum, gate progress |
 | `assist_example.py` | Shared-autonomy example: blends human `(v, w)` with a scan-based collision-avoidance term |
 | `autopilot_gates.py` | Pure-pursuit through gates from state; reference solution and integration test |

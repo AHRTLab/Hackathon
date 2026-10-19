@@ -17,7 +17,7 @@ Live sim (Chrome): https://ahrtlab.github.io/Hackathon/  ·  Contract: [`protoco
 | [`state_listener.py`](examples/state_listener.py) | Prints pose, nearest lidar obstacle, course progress and events |
 | [`controller_template.py`](examples/controller_template.py) | **Copy this:** fill in `my_input()` and `step()`; all the plumbing is done |
 | [`myo_lsl_publisher.py`](examples/myo_lsl_publisher.py) | Real Myo → LSL (`Myo_EMG`, `Myo_IMU`, `Myo_Events`) over built-in Bluetooth, with arm sync |
-| [`myo_threshold_controller.py`](examples/myo_threshold_controller.py) | Baseline EMG controller: calibrate, then fist = forward, flex / extend = turn. Beat it! |
+| [`myo_emg_example.py`](examples/myo_emg_example.py) | Smallest Myo controller: EMG level over a threshold → creep forward. Shows read → feature → decide → send |
 | [`fake_myo_lsl.py`](examples/fake_myo_lsl.py) | The same Myo streams with synthetic data (no armband needed) |
 | [`myo_check.py`](examples/myo_check.py) | Can this laptop find, connect to and vibrate a Myo? |
 | [`autopilot_gates.py`](examples/autopilot_gates.py) | Reference closed-loop controller that drives L1–L3 by itself |

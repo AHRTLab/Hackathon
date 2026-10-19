@@ -72,11 +72,14 @@ python events/2026-aware-ai-jackal/examples/state_listener.py
    Tick `Myo_EMG`. Make a fist and watch the RMS bars. Tick `Myo_IMU` to see the band's 3-D
    orientation (tilt and twist are usable as inputs too). Use **Record** for labeled takes (CSV), and
    **Change…** to choose the folder.
-4. Drive with the baseline EMG controller (it walks you through a 10-second calibration):
+4. See how the pieces connect with the smallest possible Myo controller:
    ```bash
-   python events/2026-aware-ai-jackal/examples/myo_threshold_controller.py
+   python events/2026-aware-ai-jackal/examples/myo_emg_example.py
    ```
-   Fist = forward, flex = turn left, extend = turn right. **Your goal is to beat this.**
+   Squeeze to creep forward, relax to stop. It reads `Myo_EMG`, computes one number (the RMS level),
+   compares it with a threshold and sends `(v, w)`. That's all; it can't even steer. Reading the
+   signal and turning it into a good command is **your** job. The staff will demo a baseline
+   controller: **your goal is to beat it.**
 
 No armband yet? `python events/2026-aware-ai-jackal/examples/fake_myo_lsl.py` publishes the same
 streams with synthetic data.

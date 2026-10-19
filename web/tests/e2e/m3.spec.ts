@@ -1,10 +1,12 @@
 // M3 acceptance: the starter-kit controllers drive the real sim through a real bridge.
+import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { Page } from '@playwright/test';
 import { EXAMPLES, run, startBridge } from './bridge';
 import { test as base, expect, simState } from './fixtures';
 
-const FIXTURES = resolve(EXAMPLES, 'tests/fixtures');
+// The baseline controller is staff-only (gitignored): that test runs only where the folder exists.
+const STAFF = resolve(EXAMPLES, '../staff');
 
 type Bridge = Awaited<ReturnType<typeof startBridge>>;
 const test = base.extend<{ bridge: Bridge }>({
@@ -22,10 +24,30 @@ async function openWithBridge(page: Page, port: number, course = 'L0-sandbox'): 
   await page.evaluate(() => (window as any).__sim.reset());
 }
 
-test('myo_threshold_controller.py + fake Myo drive the robot over LSL', async ({ page, bridge, errors }) => {
+test('myo_emg_example.py + fake Myo: squeeze drives forward over WebSocket', async ({ page, bridge, errors }) => {
   test.setTimeout(90_000);
   const myo = await run([`${EXAMPLES}/fake_myo_lsl.py`, '--seconds', '40']);
-  const ctl = await run([`${EXAMPLES}/myo_threshold_controller.py`, '--load', `${FIXTURES}/fake_myo_calibration.json`,
+  const ctl = await run([`${EXAMPLES}/myo_emg_example.py`, '--bridge', `ws://127.0.0.1:${bridge.port}/cmd`, '--seconds', '30']);
+  try {
+    await openWithBridge(page, bridge.port);
+    await page.locator('#bridge-light[data-state="active"]').waitFor({ timeout: 25_000 });
+    await expect(page.locator('#bridge-details')).toContainText('myo-example');
+    await page.waitForTimeout(6000); // one full fake contract / relax cycle
+    const s = await simState(page);
+    expect(s.pose.x).toBeGreaterThan(0.5);
+    expect(Math.abs(s.pose.yaw)).toBeLessThan(0.05);      // it has no steering
+  } finally {
+    ctl.kill();
+    myo.kill();
+  }
+  void errors;
+});
+
+test('staff baseline myo_threshold_controller.py + fake Myo drive the robot over LSL', async ({ page, bridge, errors }) => {
+  test.skip(!existsSync(`${STAFF}/myo_threshold_controller.py`), 'staff/ folder not present (gitignored)');
+  test.setTimeout(90_000);
+  const myo = await run([`${EXAMPLES}/fake_myo_lsl.py`, '--seconds', '40']);
+  const ctl = await run([`${STAFF}/myo_threshold_controller.py`, '--load', `${STAFF}/fake_myo_calibration.json`,
     '--seconds', '30', '--source', 'm3-threshold']);
   try {
     await openWithBridge(page, bridge.port);
