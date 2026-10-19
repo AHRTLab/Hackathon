@@ -66,6 +66,11 @@ panel, or put them in the URL so every run is identical:
 They apply to every input (bridge and keyboard). A change during a run waits for **Reset**, so each run
 has one condition. `rtlx=1` turns on the NASA-RTLX form after each run.
 
+**Judging:** the procedure (3 attempts per course on L1–L3, best counts, plus a degraded-link L1 run at
+`?course=L1-gates&latency=300&drop=10&seed=1`) and the rubric are in
+[`events/2026-aware-ai-jackal/RUBRIC.md`](../events/2026-aware-ai-jackal/RUBRIC.md). Enter each team's id on the page
+before their runs, and download the Runs CSV afterwards.
+
 **Collecting data at the end of a session:**
 - **Runs CSV** (one row per run: time, score, collisions, missed gates, path, smoothness, deadman %,
   drops, latency, knob settings + seed, RTLX + subscales) and **Last trace** (20 Hz) from the page.

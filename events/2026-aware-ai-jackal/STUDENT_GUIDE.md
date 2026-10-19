@@ -121,6 +121,7 @@ yellow), then cross the finish (L3: stop inside the dock for 1 s).
 **score = time + 5 s per collision + 10 s per missed gate** (lower is better)
 
 The page logs every run. **Runs CSV** and **Last trace** (bottom right) download your results.
+How judged runs work and how teams are scored: [RUBRIC.md](RUBRIC.md).
 
 ## 8. Record everything in one file (optional)
 

@@ -5,6 +5,7 @@ anything, as long as it sends `(v, w)` commands.
 
 **Start here: [STUDENT_GUIDE.md](STUDENT_GUIDE.md)**: install → drive in about 10 minutes → Myo → your
 own controller, plus the rules, scoring and troubleshooting.
+**Judging:** [RUBRIC.md](RUBRIC.md) · Kickoff slides: [`presentations/`](presentations/)
 
 Live sim (Chrome): https://ahrtlab.github.io/Hackathon/  ·  Contract: [`protocol/PROTOCOL.md`](../../protocol/PROTOCOL.md)
 
