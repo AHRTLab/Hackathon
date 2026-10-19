@@ -4,6 +4,7 @@
     pip install dl-myo
     python myo_check.py              # connect to the first Myo found (by its service UUID)
     python myo_check.py --addr XX    # connect to a specific one (address as printed by step 2 or 1)
+    python myo_check.py --off        # ... and then turn it off (it has no power button)
 
 Close Myo Connect first (it holds the armband). macOS: your terminal app needs Bluetooth permission
 (System Settings → Privacy & Security → Bluetooth); without it Python exits silently on the first scan.
@@ -12,6 +13,7 @@ Steps:
   1. plain BLE scan             macOS reports per-computer UUIDs here, not MAC addresses
   2. scan with real addresses   (bleak's use_bdaddr) what dl-myo's connect-by-MAC compares against
   3. connect + vibrate twice    + battery level, then disconnect
+  4. (--off) deep sleep         off until it is plugged into USB; left alone it only idles (drains slowly)
 If 1 finds the Myo but 2 shows a different address (or nothing), connecting by the address from 1 can
 never work with dl-myo on macOS, which is exactly the "found it but no vibration" symptom.
 """
@@ -78,6 +80,8 @@ async def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--addr", help="connect to this address instead of the first Myo found")
     ap.add_argument("--timeout", type=float, default=30.0)
+    ap.add_argument("--off", action="store_true",
+                    help="then turn the armband OFF (deep sleep). It stays off until plugged into USB")
     args = ap.parse_args()
     tolerate_short_service_uuids()
 
@@ -109,6 +113,9 @@ async def main() -> int:
             print(f"   battery: {await client.battery_level()} %")
         except Exception as e:
             print(f"   battery read failed: {e}")
+        if args.off:
+            await client.deep_sleep()
+            print("4. ✓ turned off (deep sleep). To turn it back on, plug it into USB for a moment.")
     finally:
         try:
             await client.disconnect()

@@ -72,6 +72,8 @@ has one condition. `rtlx=1` turns on the NASA-RTLX form after each run.
   These live in the browser tab only, so download them before closing it.
 - lsl-web-viewer recordings: the folder shown next to "saving to" (CSV per stream per take).
 - LabRecorder `.xdf`: `Myo_EMG`, `Myo_IMU`, `Myo_Events`, `JackalState`, `JackalScan`, `JackalEvents`, `JackalCmd`.
+- **Armbands:** stop each publisher, then `myo_check.py --off` on every Myo (no power button; otherwise
+  it idles and drains overnight). It wakes again when plugged into USB, so charge them all before the next day.
 - In-session learning only, so no IRB. **If any of this becomes research data, IRB applies.**
 
 ## 4. Troubleshooting (staff level)
@@ -84,6 +86,7 @@ has one condition. `rtlx=1` turns on the NASA-RTLX form after each run.
 | "Another sim tab is using the bridge" | Two sim tabs; only one may connect. Close one, or press Connect in the one to keep. |
 | DEADMAN flicker | The sender loop is slower than 4 Hz or blocks (slow classifier). Send at 20 Hz; resend the last value. High `drop` settings also cause it (expected). |
 | Commands ignored | Another source is active (HUD/panel shows it). It must be silent for 1 s before another takes over. |
+| Myo: not found at all | Turned off with `--off`, or a flat battery: plug into USB (that also wakes it). |
 | Myo: found but no connection | Myo Connect still running, or the armband is connected to another laptop. On macOS: addresses from a plain scan are per-computer UUIDs; our scripts handle it. Pass the real MAC from `myo_check.py` step 2 to `--addr`. |
 | Myo: red "badly formed hexadecimal UUID" tracebacks | Nearby phones / beacons advertising 32-bit IDs (bleak 0.20 bug). Our Myo scripts suppress it; harmless anyway. |
 | Myo: Python exits silently on the first scan (Mac) | The terminal app has no Bluetooth permission (see checklist). |

@@ -84,6 +84,14 @@ python events/2026-aware-ai-jackal/examples/state_listener.py
 No armband yet? `python events/2026-aware-ai-jackal/examples/fake_myo_lsl.py` publishes the same
 streams with synthetic data.
 
+**Turning the Myo off.** It has no power button. When you're done for the day, stop the publisher
+(Ctrl+C), then run:
+```bash
+python events/2026-aware-ai-jackal/examples/myo_check.py --off
+```
+It buzzes, then switches off. **To turn it back on, plug it into USB** (any charger) for a moment. Left
+alone without this, it only idles and slowly drains its battery.
+
 ## 5. Build your controller
 
 Copy `examples/controller_template.py`, set `SOURCE` to your team name, and edit two functions:
@@ -130,5 +138,6 @@ time-synced, in one `.xdf` file: your `Myo_EMG` / `Myo_IMU` / `Myo_Events`, plus
 | My commands are ignored | Another sender is active (the HUD shows which one). Stop it and wait 1 s. |
 | "Another sim tab is using the bridge" | Only one sim tab can connect. Close the other tab, or click **Connect**. |
 | Myo found but won't connect | Quit Myo Connect; move the band to wake it; on a Mac, check Bluetooth permission for your terminal. |
+| Myo not found at all | Turned off (`--off`) or flat battery: plug it into USB. |
 | Myo signal very noisy | Tighter fit (sizing clips), thickest part of the forearm, wait 2 min to warm up, re-sync. |
 | `conda: command not found` | Open a new terminal after installing Miniconda (Windows: use "Anaconda Prompt"). |
