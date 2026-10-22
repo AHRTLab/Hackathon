@@ -4,6 +4,8 @@
   --mode arm (default)  squeeze to go (harder = faster), roll your forearm to steer, tip it down for
                         reverse, relax to stop. Needs takes: rest, forward (EMG) and neutral, roll_left,
                         roll_right, tip_down (IMU); `calibrate` records them all in ~30 s.
+  --mode lever          like arm, but your arm's height is the throttle: raised = stop, level = full
+                        speed, with a light grip as the enable (relax = stop). Needs arm_up takes too.
   --mode gestures       five EMG gestures: rest stop, fist forward, hand points left / right to turn,
                         spread fingers to reverse. Needs takes of each, recorded in lsl-web-viewer.
   Both: a lidar assist slows before obstacles and nudges off walls (--no-assist to switch it off).
@@ -237,6 +239,7 @@ CAL_STEPS = (  # (EMG label, IMU label, what to do)
     (None, "roll_left", "relax the hand; roll your forearm LEFT like a doorknob, as far as comfortable"),
     (None, "roll_right", "now roll it RIGHT, as far as comfortable"),
     (None, "tip_down", "palm down again; lower your forearm from the elbow, about 45°"),
+    (None, "arm_up", "raise your forearm from the elbow to where STOP feels natural (lever mode)"),
 )
 
 
@@ -278,6 +281,9 @@ def report_calibration(folder: str) -> A.Calibration:
     print(f"  steering: roll left {cal.roll_left:+.0f}°, right {cal.roll_right:+.0f}°"
           + ("   ⚠ roll further" if min(cal.roll_left, -cal.roll_right) < 25 else ""))
     print(f"  reverse:  tip down {cal.tip_down:.0f}°" + ("   ⚠ tip further" if cal.tip_down < 25 else ""))
+    if cal.tip_up:
+        print(f"  lever:    arm up {cal.tip_up:+.0f}° (stop past {A.LEVER_STOP * cal.tip_up:+.0f}°, "
+              f"full speed from {A.LEVER_FULL * cal.tip_up:+.0f}°)")
     return cal
 
 
@@ -304,8 +310,11 @@ class GestureMode:
 class ArmMode:
     needs_imu = True
 
-    def __init__(self, folder: str, v_max: float, w_max: float):
-        self.control = A.ArmControl(report_calibration(folder), v_max, w_max)
+    def __init__(self, folder: str, v_max: float, w_max: float, lever: bool = False):
+        try:
+            self.control = A.ArmControl(report_calibration(folder), v_max, w_max, lever)
+        except ValueError as e:
+            sys.exit(str(e))
 
     @property
     def last(self) -> dict:
@@ -394,7 +403,8 @@ class DriveLog:
 
 
 def cmd_drive(args: argparse.Namespace) -> None:
-    mode = GestureMode(args.folder) if args.mode == "gestures" else ArmMode(args.folder, args.vmax, args.wmax)
+    mode = (GestureMode(args.folder) if args.mode == "gestures"
+            else ArmMode(args.folder, args.vmax, args.wmax, lever=args.mode == "lever"))
     emg = Inlet(args.stream)
     imu = Inlet(args.imu_stream) if mode.needs_imu else None
     window: deque = deque(maxlen=round(G.WINDOW_S * (emg.srate or 200.0)))
@@ -493,7 +503,7 @@ def main() -> None:
 
     p = sub.add_parser("drive", help="drive from the live Myo")
     p.add_argument("folder", help="your takes, e.g. data/<team>")
-    p.add_argument("--mode", choices=("arm", "gestures"), default="arm")
+    p.add_argument("--mode", choices=("arm", "lever", "gestures"), default="arm")
     p.add_argument("--dry-run", action="store_true", help="print decisions, don't send commands")
     p.add_argument("--no-assist", action="store_true", help="switch the lidar assist off")
     p.add_argument("--no-recenter", action="store_true", help="arm mode: skip re-zeroing straight at start")

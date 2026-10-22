@@ -128,3 +128,41 @@ def test_recenter_moves_straight_but_keeps_the_turn_limits_in_place():
     assert cal.angles(tilted)[0] == pytest.approx(0, abs=1)                 # that pose now drives straight
     assert cal.angles(left_abs)[0] == pytest.approx(cal.roll_left, abs=2)   # full left is where it was
     assert cal.roll_left == pytest.approx(50, abs=3) and cal.roll_right == pytest.approx(-70, abs=3)
+
+
+def light_grip_rms():
+    rms = G.toy_rms()
+    return rms["rest"] + 0.3 * (rms["forward"] - rms["rest"])     # ~30% of the squeeze range
+
+
+def lever_in(pose_or_gravity, grip=True):
+    c = A.ArmControl(toy_calibration(), lever=True)
+    g = A.toy_gravity()[pose_or_gravity] if isinstance(pose_or_gravity, str) else pose_or_gravity
+    c.feed_imu(A.synth_imu(g, 2.0, 50.0, RNG))
+    rms = light_grip_rms() if grip else G.toy_rms()["rest"]
+    v, w, _ = c.step(G.synth_emg(rms, 0.2, 200.0, RNG))
+    return v, w
+
+
+def tipped(deg):
+    t = math.radians(deg)
+    return np.array([math.sin(t), 0.0, math.cos(t)])
+
+
+def test_lever_arm_height_is_the_throttle_with_a_light_grip_enable():
+    assert lever_in("arm_up") == (0.0, 0.0)                     # raised: stop
+    v_level, w_level = lever_in("neutral")
+    assert v_level == pytest.approx(A.V_MAX) and abs(w_level) < 0.1   # level + light grip: full speed
+    v_mid, _ = lever_in(tipped(-25))
+    assert 0 < v_mid < A.V_MAX                                   # half raised: in between
+    assert lever_in("neutral", grip=False) == (0.0, 0.0)        # hand relaxed: stop, whatever the arm does
+    assert lever_in("tip_down")[0] == -A.V_REVERSE              # tipped down: reverse
+    v, w = lever_in("roll_left")
+    assert v > 0 and w > 1.0                                     # steering as in arm mode
+
+
+def test_lever_needs_arm_up_takes():
+    cal = toy_calibration()
+    cal.tip_up = 0.0
+    with pytest.raises(ValueError, match="arm_up"):
+        A.ArmControl(cal, lever=True)

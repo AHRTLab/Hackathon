@@ -1,4 +1,5 @@
-"""Squeeze to go, roll your forearm to steer, tip it down for reverse; plus a lidar assist.
+"""Squeeze to go (or, in lever mode, lower a raised arm to go), roll your forearm to steer, tip it
+down for reverse; plus a lidar assist.
 
 Orientation comes from the Myo's accelerometer (gravity), never yaw, so it does not drift. The axes are
 learned from calibration takes, so it works whichever way the band is worn:
@@ -7,6 +8,7 @@ learned from calibration takes, so it works whichever way the band is worn:
     neutral            Myo_IMU   driving position, palm down
     roll_left/right    Myo_IMU   forearm rolled like turning a doorknob, as far as comfortable
     tip_down           Myo_IMU   forearm lowered from the elbow, about 45°
+    arm_up             Myo_IMU   lever mode only: forearm raised to where "stop" feels natural
 """
 from __future__ import annotations
 
@@ -21,6 +23,7 @@ import gestures as G
 from myo_emg_example import emg_level
 
 POSES = ("neutral", "roll_left", "roll_right", "tip_down")
+ALL_POSES = POSES + ("arm_up",)
 IMU_CHANNELS = ["qw", "qx", "qy", "qz", "ax", "ay", "az", "gx", "gy", "gz"]
 
 ENGAGE_ON = 0.25     # fraction of the rest → fist range that starts the throttle
@@ -29,6 +32,10 @@ DEADZONE_DEG = 10.0  # roll inside this steers straight
 STEER_FULL = 0.7     # full turn at this fraction of your comfortable roll on that side
 REVERSE_ON = 0.6     # fraction of your tip_down angle that selects reverse
 REVERSE_OFF = 0.45
+LEVER_GRIP_ON = 0.15  # lever mode: a light grip enables driving (relax = stop) ...
+LEVER_GRIP_OFF = 0.08
+LEVER_STOP = 0.6      # ... arm raised past this fraction of arm_up: stopped
+LEVER_FULL = 0.15     # raised less than this fraction (about level): full speed
 ENVELOPE = 1.5       # roll or tip beyond this × your calibrated range (or tipped up as far as
                      # tip_down) means the arm left the driving pose: stop
 V_MAX = 1.0          # m/s at a full squeeze
@@ -59,6 +66,7 @@ class Calibration:
     roll_right: float          # degrees, - by construction
     tip_down: float            # degrees, + by construction
     tip_sign: float
+    tip_up: float = 0.0        # degrees, - (arm_up); 0 = not calibrated
 
     def angles(self, g: np.ndarray) -> tuple[float, float]:
         """(roll, tip) in degrees from neutral for a gravity direction g (band frame)."""
@@ -74,6 +82,8 @@ class Calibration:
         calibrated roll and tip limits keep their absolute place. Returns the (roll, tip) offset."""
         roll, tip = self.angles(g)
         self.roll_left, self.roll_right, self.tip_down = self.roll_left - roll, self.roll_right - roll, self.tip_down - tip
+        if self.tip_up:
+            self.tip_up -= tip
         self.neutral = unit(np.asarray(g, dtype=float)).tolist()
         return roll, tip
 
@@ -109,12 +119,14 @@ def calibrate(emg_takes: list[G.Take], poses: dict[str, list[np.ndarray]]) -> Ca
     _, tip = cal.angles(grav["tip_down"])
     cal.tip_sign = 1.0 if tip >= 0 else -1.0
     cal.tip_down = abs(tip)
+    if poses.get("arm_up"):
+        cal.tip_up = cal.angles(unit(np.mean([mean_gravity(x) for x in poses["arm_up"]], axis=0)))[1]
     return cal
 
 
 def load_calibration(folder: str | Path) -> tuple[Calibration, list[str]]:
     takes, notes = G.load_takes(folder)
-    found, more = G.load_recordings(folder, "Myo_IMU", POSES, 10)
+    found, more = G.load_recordings(folder, "Myo_IMU", ALL_POSES, 10)
     poses: dict[str, list[np.ndarray]] = {}
     for label, x, _, _ in found:
         poses.setdefault(label, []).append(x)
@@ -122,10 +134,13 @@ def load_calibration(folder: str | Path) -> tuple[Calibration, list[str]]:
 
 
 class ArmControl:
-    """EMG level → throttle, roll → steering, tip → reverse gear. Stateful (hysteresis, smoothing)."""
+    """Squeeze (or lever: arm height, with a light grip as the enable) → speed, roll → steering,
+    tip down → reverse gear. Stateful (hysteresis, smoothing)."""
 
-    def __init__(self, cal: Calibration, v_max: float = V_MAX, w_max: float = W_MAX):
-        self.cal, self.v_max, self.w_max = cal, v_max, w_max
+    def __init__(self, cal: Calibration, v_max: float = V_MAX, w_max: float = W_MAX, lever: bool = False):
+        if lever and cal.tip_up > -15:
+            raise ValueError("lever mode needs arm_up takes (forearm raised to where stop feels natural)")
+        self.cal, self.v_max, self.w_max, self.lever = cal, v_max, w_max, lever
         self.engaged = self.reverse = False
         self.g: np.ndarray | None = None
         self.last: dict = {}
@@ -145,11 +160,20 @@ class ArmControl:
         c = self.cal
         level = emg_level(emg_window)
         frac = (level - c.rest_level) / max(c.fist_level - c.rest_level, 1e-6)
-        self.engaged = frac > (ENGAGE_OFF if self.engaged else ENGAGE_ON)
+        on, off = (LEVER_GRIP_ON, LEVER_GRIP_OFF) if self.lever else (ENGAGE_ON, ENGAGE_OFF)
+        self.engaged = frac > (off if self.engaged else on)
         roll, tip = c.angles(self.g) if self.g is not None else (0.0, 0.0)
         self.reverse = tip > c.tip_down * (REVERSE_OFF if self.reverse else REVERSE_ON)
-        outside = (roll > ENVELOPE * c.roll_left or roll < ENVELOPE * c.roll_right
-                   or tip > ENVELOPE * c.tip_down or tip < -c.tip_down)
+        if self.lever:
+            stop, full = LEVER_STOP * c.tip_up, LEVER_FULL * c.tip_up
+            throttle = float(np.clip((tip - stop) / (full - stop), 0, 1))
+            raised = tip < stop                       # roll means nothing near vertical: don't judge it
+            outside = (not raised and (roll > ENVELOPE * c.roll_left or roll < ENVELOPE * c.roll_right)
+                       or tip > ENVELOPE * c.tip_down or tip < ENVELOPE * c.tip_up)
+        else:
+            throttle = float(np.clip(frac, 0, 1))
+            outside = (roll > ENVELOPE * c.roll_left or roll < ENVELOPE * c.roll_right
+                       or tip > ENVELOPE * c.tip_down or tip < -c.tip_down)
         self.last = {"level": level, "roll": roll, "tip": tip, "engaged": self.engaged,
                      "reverse": self.reverse, "outside": outside}
         if outside:
@@ -157,9 +181,11 @@ class ArmControl:
         if not self.engaged:
             v = w = 0.0
         else:
-            throttle = float(np.clip(frac, 0, 1))
-            v = -V_REVERSE * throttle if self.reverse else self.v_max * throttle
-            w = 0.0 if self.reverse else self.w_max * self.steer(roll)
+            if self.reverse:
+                v, w = -V_REVERSE * (1.0 if self.lever else throttle), 0.0
+            else:
+                v = self.v_max * throttle
+                w = self.w_max * self.steer(roll) if throttle > 0 else 0.0
         gear = "R" if self.reverse else "D"
         what = ("go" if self.engaged else "rest")
         return v, w, f"{gear} {what:4s} level {level:5.1f}  roll {roll:+4.0f}°  tip {tip:+4.0f}°"
@@ -209,11 +235,12 @@ def toy_gravity() -> dict[str, np.ndarray]:
     def rot(roll: float, tip: float) -> np.ndarray:
         r, t = math.radians(roll), math.radians(tip)
         return unit(np.array([math.sin(t), math.cos(t) * math.sin(r), math.cos(t) * math.cos(r)]))
-    return {"neutral": rot(0, 0), "roll_left": rot(70, 5), "roll_right": rot(-50, 0), "tip_down": rot(0, 55)}
+    return {"neutral": rot(0, 0), "roll_left": rot(70, 5), "roll_right": rot(-50, 0), "tip_down": rot(0, 55),
+            "arm_up": rot(0, -70)}
 
 
 def measured_gravity(folder: str | Path) -> dict[str, np.ndarray]:
-    found, _ = G.load_recordings(folder, "Myo_IMU", POSES, 10)
+    found, _ = G.load_recordings(folder, "Myo_IMU", ALL_POSES, 10)
     out: dict[str, list[np.ndarray]] = {}
     for label, x, _, _ in found:
         out.setdefault(label, []).append(mean_gravity(x))
