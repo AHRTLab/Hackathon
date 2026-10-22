@@ -1,6 +1,6 @@
 # Staff Runbook: AWARE-AI Jackal Hackathon
 
-For organizers and TAs. Students use [`events/2026-aware-ai-jackal/STUDENT_GUIDE.md`](../events/2026-aware-ai-jackal/STUDENT_GUIDE.md);
+For organizers and TAs. Students use [`STUDENT_GUIDE.md`](../STUDENT_GUIDE.md);
 design notes and every quirk we hit are in [`SPIKE_FINDINGS.md`](SPIKE_FINDINGS.md).
 
 ## 1. Deploying
@@ -14,7 +14,7 @@ design notes and every quirk we hit are in [`SPIKE_FINDINGS.md`](SPIKE_FINDINGS.
   L1–L3 come from `web/scripts/make_courses.py`). `npm test` (and CI) fails if a course doesn't compile,
   starts in a collision, or can't be completed by the reference autopilot.
 - **Staff-only material** (the baseline `myo_threshold_controller.py` students must beat, its tests and
-  calibration fixture) lives in `events/2026-aware-ai-jackal/staff/`, which is **gitignored**: it is never
+  calibration fixture) lives in `staff/` (repo root), which is **gitignored**: it is never
   pushed and a fresh clone doesn't have it. Keep a private copy (lab drive or a private repo). Its e2e test
   skips itself where the folder is missing. Run its unit tests with `pytest -q staff`.
 - **lsl-web-viewer** is its own repo (https://github.com/AHRTLab/lsl-web-viewer). Releases are git tags;
@@ -24,7 +24,7 @@ design notes and every quirk we hit are in [`SPIKE_FINDINGS.md`](SPIKE_FINDINGS.
   ```bash
   cd web && npm test && npm run e2e:chrome          # sim, bridge link, courses, knobs, RTLX
   cd ../bridge && pytest -q
-  cd ../events/2026-aware-ai-jackal/examples && pytest -q tests
+  cd .. && pytest -q examples/tests
   ```
 
 ## 2. Pre-event checklist (a day before)
@@ -33,15 +33,15 @@ design notes and every quirk we hit are in [`SPIKE_FINDINGS.md`](SPIKE_FINDINGS.
 - [ ] `git clone https://github.com/AHRTLab/Hackathon.git`, then `conda env create -f environment.yml` (or `conda env update … --prune`).
 - [ ] `conda activate jackal && jackal-bridge --serve-site --open` once while online. This caches the site
       (about 3 MB) so it also works offline. The page should load, and the top-left panel should turn amber.
-- [ ] `python events/2026-aware-ai-jackal/examples/keyboard_teleop.py` drives the robot (panel turns green).
-- [ ] Pick L1, then run `python events/2026-aware-ai-jackal/examples/autopilot_gates.py`. It should finish and print `result: finish`.
+- [ ] `python examples/keyboard_teleop.py` drives the robot (panel turns green).
+- [ ] Pick L1, then run `python examples/autopilot_gates.py`. It should finish and print `result: finish`.
 - [ ] **Macs:** System Settings → Privacy & Security → **Bluetooth**: enable the terminal app students will use.
 - [ ] Google Chrome installed (the GitHub Pages link needs it; other browsers must use `--serve-site`).
 - [ ] If recording: [LabRecorder](https://github.com/labstreaminglayer/App-LabRecorder/releases) installed.
 
 **Every Myo armband:**
 - [ ] Charged (USB). Myo Connect **quit** on every laptop (it holds the armband).
-- [ ] `python events/2026-aware-ai-jackal/examples/myo_check.py` connects, buzzes twice and shows the battery %.
+- [ ] `python examples/myo_check.py` connects, buzzes twice and shows the battery %.
       Label each armband with its address from step 2 of that output (useful when 10 are in one room).
 
 ## 3. On the day
@@ -68,7 +68,7 @@ has one condition. `rtlx=1` turns on the NASA-RTLX form after each run.
 
 **Judging:** the procedure (3 attempts per course on L1–L3, best counts, plus a degraded-link L1 run at
 `?course=L1-gates&latency=300&drop=10&seed=1`) and the rubric are in
-[`events/2026-aware-ai-jackal/RUBRIC.md`](../events/2026-aware-ai-jackal/RUBRIC.md). Enter each team's id on the page
+[`RUBRIC.md`](../RUBRIC.md). Enter each team's id on the page
 before their runs, and download the Runs CSV afterwards.
 
 **Collecting data at the end of a session:**

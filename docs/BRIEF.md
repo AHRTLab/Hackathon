@@ -1,6 +1,6 @@
 > Copied from `AHRTLab/IEEE-telepresence-shared-control/docs/JACKAL_HACKATHON_BRIEF.md`. In this repo the
 > platform (`protocol/`, `web/`, `bridge/`, `models/`) sits at the root, and the event material (starter kit,
-> guide, presentations) lives in `events/2026-aware-ai-jackal/` instead of a separate new repo (brief §13).
+> guide, presentations) lives at the root of AHRTLab/Hackathon (`main` = the current event; past events are branches) instead of a separate new repo (brief §13).
 
 # AWARE-AI Hackathon: Jackal Sim + Command Bridge
 ## Project Brief & Implementation Spec

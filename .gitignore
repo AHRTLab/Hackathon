@@ -24,6 +24,6 @@ web/playwright-report/
 models/jackal/_src/
 
 # Staff-only material (baseline solutions etc.); never pushed. See the folder's README.
-events/*/staff/
+staff/
 # Written by the Myo controllers next to wherever they are run
 myo_calibration.json

@@ -1,7 +1,7 @@
 // M1 acceptance: real bridge + real example senders drive the sim; pulling any plug stops the robot.
 import { test as base } from './fixtures';
 import { expect, simState } from './fixtures';
-import { EXAMPLES, run, sendUdp, startBridge } from './bridge';
+import { EXAMPLES, ROOT, run, sendUdp, startBridge } from './bridge';
 import type { Page } from '@playwright/test';
 
 type Bridge = Awaited<ReturnType<typeof startBridge>>;
@@ -161,7 +161,7 @@ test('two sim tabs: the newer one takes the bridge and they do NOT keep kicking 
 
 test('--serve-site: the bridge serves the page itself; it connects same-origin with no ?bridge= and drives', async ({ page, errors }) => {
   const { resolve } = await import('node:path');
-  const b = await startBridge(['--no-lsl', '--site-dir', resolve(EXAMPLES, '../../../web/dist')]);
+  const b = await startBridge(['--no-lsl', '--site-dir', resolve(ROOT, 'web/dist')]);
   try {
     await page.goto(`http://127.0.0.1:${b.port}/`);                     // redirects to /Hackathon/
     await expect(page).toHaveURL(new RegExp(`127\\.0\\.0\\.1:${b.port}/Hackathon/$`));

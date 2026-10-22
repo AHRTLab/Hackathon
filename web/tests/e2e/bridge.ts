@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 export const PYTHON = process.env.PYTHON ?? resolve(ROOT, '.venv/bin/python');
-export const EXAMPLES = resolve(ROOT, 'events/2026-aware-ai-jackal/examples');
+export const EXAMPLES = resolve(ROOT, 'examples');
 
 export function freePort(): Promise<number> {
   return new Promise((ok, fail) => {

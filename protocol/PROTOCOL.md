@@ -1,6 +1,6 @@
 # Jackal Command Protocol, v1
 
-> New here? Start with the [student guide](../events/2026-aware-ai-jackal/STUDENT_GUIDE.md); this page is the
+> New here? Start with the [student guide](../STUDENT_GUIDE.md); this page is the
 > full contract for when you write your own controller.
 
 This is the one contract every team's controller follows. Send commands that match it and your

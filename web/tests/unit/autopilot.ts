@@ -1,4 +1,4 @@
-// TypeScript twin of events/2026-aware-ai-jackal/examples/autopilot_gates.py (same waypoint + control
+// TypeScript twin of examples/autopilot_gates.py (same waypoint + control
 // rules), so course designs can be checked for completability in Node in a few hundred milliseconds.
 import type { Course } from '../../src/sim/course';
 import { dockDefaults } from '../../src/sim/course';
