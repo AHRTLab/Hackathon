@@ -433,6 +433,8 @@ def cmd_drive(args: argparse.Namespace) -> None:
                 if not args.no_assist:
                     v, w, note = A.assist(v, w, state)
                     line += f"  [{note}]" if note else ""
+                if bridge is not None and not state and not args.no_assist:
+                    line += "  [no sim state: is the sim tab open?]"
                 line += f"  →  v {v:+.2f}  w {w:+.2f}"
                 if log is not None:
                     log.write(mode.last, v, w, state)
