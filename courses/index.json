@@ -1,1 +1,9 @@
-{ "default": "L0-sandbox", "courses": [ { "id": "L0-sandbox", "name": "L0 Sandbox" } ] }
+{
+  "default": "L0-sandbox",
+  "courses": [
+    { "id": "L0-sandbox", "name": "L0 Sandbox" },
+    { "id": "L1-gates", "name": "L1 Gates" },
+    { "id": "L2-slalom", "name": "L2 Slalom" },
+    { "id": "L3-corridor-dock", "name": "L3 Corridor + Dock" }
+  ]
+}
