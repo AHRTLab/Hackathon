@@ -10,6 +10,9 @@ design notes and every quirk we hit are in [`SPIKE_FINDINGS.md`](SPIKE_FINDINGS.
   the repo's **Actions** tab. A red run means a test failed and the previous site stays live.
 - One-time repo setting: **Settings → Pages → Source: GitHub Actions**. If the site ever shows the README
   instead of the sim, this setting has been changed to "Deploy from a branch".
+- **`gh-pages` = what is live.** After each deploy the workflow commits the published files to the
+  `gh-pages` branch, so its latest commit names the `main` commit that is live. Don't edit it by hand,
+  and don't point Pages at it.
 - **Courses:** edit or add `web/public/courses/*.json` (format: `web/public/courses/README.md`;
   L1–L3 come from `web/scripts/make_courses.py`). `npm test` (and CI) fails if a course doesn't compile,
   starts in a collision, or can't be completed by the reference autopilot.

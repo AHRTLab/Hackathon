@@ -97,4 +97,5 @@ and `web/tests/e2e/m0.spec.ts` (5/5 in Chrome 154 on macOS arm64).
   `SITE_BASE=/<repo>/`, adds `site.zip` (for `jackal-bridge --serve-site`), and deploys. Pages source
   must be set to **GitHub Actions**. If it's set to "Deploy from a branch: main", GitHub renders the
   README as the site, which is exactly the "it's just READMEs" symptom we hit on 2026-10-15.
-- The old `gh-pages` branch is no longer used and can be deleted.
+- `gh-pages` is a **record** of what is live, not what Pages serves: after each successful deploy the
+  workflow's `record` job commits the exact published files there (message: `Deploy <sha> (main)`).

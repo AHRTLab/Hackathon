@@ -1,5 +1,7 @@
 # Build the Jackal sim (web/) and publish it to GitHub Pages on every push to main.
 # One-time repo setting: Settings → Pages → Build and deployment → Source: "GitHub Actions".
+# After a successful deploy, the exact published files are also committed to the gh-pages branch, so
+# that branch always shows what is live and its history is a log of deploys (it is not what Pages serves).
 name: Deploy sim to GitHub Pages
 
 on:
@@ -52,3 +54,28 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  record:
+    needs: deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # push to gh-pages
+      actions: read     # download this run's site artifact
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+      - uses: actions/download-artifact@v4
+        with:
+          name: github-pages
+          path: ${{ runner.temp }}/site
+      - name: Commit the deployed files to gh-pages
+        run: |
+          git rm -rq --ignore-unmatch .
+          tar -xf "${{ runner.temp }}/site/artifact.tar" -C .
+          touch .nojekyll
+          git add -A
+          if git diff --cached --quiet; then echo "gh-pages already matches this deploy"; exit 0; fi
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -qm "Deploy ${GITHUB_SHA::7} (main), base /${{ github.event.repository.name }}/"
+          git push origin gh-pages
