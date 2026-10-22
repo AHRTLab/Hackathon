@@ -117,3 +117,14 @@ def test_arm_out_of_the_driving_pose_stops_even_when_squeezing():
     c.feed_imu(A.synth_imu(np.array([-0.95, 0.0, -0.3]), 2.0, 50.0, RNG))   # arm tipped far up
     v, w, line = c.step(G.synth_emg(G.toy_rms()["forward"], 0.2, 200.0, RNG))
     assert (v, w) == (0.0, 0.0) and "out of driving pose" in line
+
+
+def test_recenter_moves_straight_but_keeps_the_turn_limits_in_place():
+    cal = toy_calibration()
+    left_abs = A.toy_gravity()["roll_left"]
+    tilted = A.unit(np.array([0.0, math.sin(math.radians(20)), math.cos(math.radians(20))]))  # held 20° left
+    roll, _ = cal.recenter(tilted)
+    assert roll == pytest.approx(20, abs=2)
+    assert cal.angles(tilted)[0] == pytest.approx(0, abs=1)                 # that pose now drives straight
+    assert cal.angles(left_abs)[0] == pytest.approx(cal.roll_left, abs=2)   # full left is where it was
+    assert cal.roll_left == pytest.approx(50, abs=3) and cal.roll_right == pytest.approx(-70, abs=3)

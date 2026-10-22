@@ -69,6 +69,14 @@ class Calibration:
         tip = self.tip_sign * math.degrees(math.asin(np.clip(g @ a, -1, 1)) - math.asin(np.clip(n @ a, -1, 1)))
         return roll, tip
 
+    def recenter(self, g: np.ndarray) -> tuple[float, float]:
+        """Make g (the arm as the driver actually holds it to go straight) the new neutral; the
+        calibrated roll and tip limits keep their absolute place. Returns the (roll, tip) offset."""
+        roll, tip = self.angles(g)
+        self.roll_left, self.roll_right, self.tip_down = self.roll_left - roll, self.roll_right - roll, self.tip_down - tip
+        self.neutral = unit(np.asarray(g, dtype=float)).tolist()
+        return roll, tip
+
     def save(self, path: str | Path) -> None:
         Path(path).write_text(json.dumps(asdict(self), indent=2))
 
@@ -120,6 +128,7 @@ class ArmControl:
         self.cal, self.v_max, self.w_max = cal, v_max, w_max
         self.engaged = self.reverse = False
         self.g: np.ndarray | None = None
+        self.last: dict = {}
 
     def feed_imu(self, samples: np.ndarray, srate: float = 50.0) -> None:
         alpha = 1 - math.exp(-1 / (GRAVITY_TAU_S * srate))
@@ -141,6 +150,8 @@ class ArmControl:
         self.reverse = tip > c.tip_down * (REVERSE_OFF if self.reverse else REVERSE_ON)
         outside = (roll > ENVELOPE * c.roll_left or roll < ENVELOPE * c.roll_right
                    or tip > ENVELOPE * c.tip_down or tip < -c.tip_down)
+        self.last = {"level": level, "roll": roll, "tip": tip, "engaged": self.engaged,
+                     "reverse": self.reverse, "outside": outside}
         if outside:
             return 0.0, 0.0, f"arm out of driving pose: stopped  roll {roll:+4.0f}°  tip {tip:+4.0f}°"
         if not self.engaged:

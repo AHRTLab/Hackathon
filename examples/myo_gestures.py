@@ -297,6 +297,7 @@ class GestureMode:
         gesture = self.decider.update(said, conf)
         level = emg_level(x)
         v, w = G.command(gesture, self.model.intensity(gesture, level))
+        self.last = {"gesture": gesture, "saw": said, "confidence": conf, "level": level}
         return v, w, f"{gesture:8s} (saw {said} {conf:4.0%})  level {level:5.1f}"
 
 
@@ -305,6 +306,35 @@ class ArmMode:
 
     def __init__(self, folder: str, v_max: float, w_max: float):
         self.control = A.ArmControl(report_calibration(folder), v_max, w_max)
+
+    @property
+    def last(self) -> dict:
+        return self.control.last
+
+    def recenter(self, imu: "Inlet", ready: int = 3, hold: float = 2.0) -> None:
+        """Re-zero steering on the arm as the driver holds it to go straight."""
+        print("\nhold your arm the way you drive STRAIGHT (squeeze or not, as you drive)")
+        for c in range(ready, 0, -1):
+            print(f"\r  {c} …", end="", flush=True)
+            time.sleep(1)
+        imu.pull()
+        rows, t_end = [], time.monotonic() + hold
+        while time.monotonic() < t_end:
+            rows.append(imu.pull())
+            time.sleep(0.02)
+        rows = [r for r in rows if r.size]
+        if not rows:
+            print("\r  no IMU data: kept the calibrated neutral")
+            return
+        cal = self.control.cal
+        g = A.mean_gravity(np.concatenate(rows))
+        roll, tip = cal.angles(g)
+        if cal.roll_left - roll < A.DEADZONE_DEG + 10 or cal.roll_right - roll > -(A.DEADZONE_DEG + 10):
+            print(f"\r  that pose is {roll:+.0f}° off neutral, too close to a turn: kept the calibrated neutral")
+            return
+        cal.recenter(g)
+        print(f"\r  ✓ straight is {roll:+.0f}° roll, {tip:+.0f}° tip from your calibration; "
+              f"full turn now {A.STEER_FULL * cal.roll_left:+.0f}° / {A.STEER_FULL * cal.roll_right:+.0f}° from here")
 
     def feed_imu(self, rows: np.ndarray, srate: float) -> None:
         if rows.size:
@@ -337,11 +367,40 @@ def follow_state(base: str) -> dict:
     return state
 
 
+class DriveLog:
+    """One CSV row per command: what the controller saw, what it sent, and the sim's course state."""
+
+    def __init__(self, folder: Path, mode: str):
+        folder.mkdir(parents=True, exist_ok=True)
+        self.path = folder / f"drive_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{mode}.csv"
+        self.f = open(self.path, "w")
+        self.cols: list[str] | None = None
+        self.t0 = time.monotonic()
+
+    def write(self, seen: dict, v: float, w: float, state: dict) -> None:
+        course = (state or {}).get("course") or {}
+        row = {"t": round(time.monotonic() - self.t0, 3), **{k: (round(x, 3) if isinstance(x, float) else x)
+                                                              for k, x in seen.items()},
+               "v": round(v, 3), "w": round(w, 3), "course": course.get("id", ""),
+               "gates_passed": course.get("gates_passed", ""), "collisions": (state or {}).get("collisions", "")}
+        if self.cols is None:
+            self.cols = list(row)
+            self.f.write(",".join(self.cols) + "\n")
+        self.f.write(",".join(str(row.get(c, "")) for c in self.cols) + "\n")
+
+    def close(self) -> str:
+        self.f.close()
+        return str(self.path)
+
+
 def cmd_drive(args: argparse.Namespace) -> None:
     mode = GestureMode(args.folder) if args.mode == "gestures" else ArmMode(args.folder, args.vmax, args.wmax)
     emg = Inlet(args.stream)
     imu = Inlet(args.imu_stream) if mode.needs_imu else None
     window: deque = deque(maxlen=round(G.WINDOW_S * (emg.srate or 200.0)))
+    if imu is not None and not args.no_recenter:
+        mode.recenter(imu)
+    log = DriveLog(Path(args.folder) / "drives", args.mode) if not args.no_log else None
 
     base = args.bridge.rstrip("/")
     bridge, state = None, {}
@@ -375,6 +434,8 @@ def cmd_drive(args: argparse.Namespace) -> None:
                     v, w, note = A.assist(v, w, state)
                     line += f"  [{note}]" if note else ""
                 line += f"  →  v {v:+.2f}  w {w:+.2f}"
+                if log is not None:
+                    log.write(mode.last, v, w, state)
             send(v, w)
             print(f"\r  {line:<96s}", end="", flush=True)
             time.sleep(max(0.0, 1 / SEND_HZ - (time.monotonic() - t0)))
@@ -384,7 +445,7 @@ def cmd_drive(args: argparse.Namespace) -> None:
         send(0.0, 0.0)
         if bridge is not None:
             bridge.close()
-        print("\nstopped")
+        print("\nstopped" + (f"; log: {log.close()}" if log is not None else ""))
 
 
 def main() -> None:
@@ -433,6 +494,8 @@ def main() -> None:
     p.add_argument("--mode", choices=("arm", "gestures"), default="arm")
     p.add_argument("--dry-run", action="store_true", help="print decisions, don't send commands")
     p.add_argument("--no-assist", action="store_true", help="switch the lidar assist off")
+    p.add_argument("--no-recenter", action="store_true", help="arm mode: skip re-zeroing straight at start")
+    p.add_argument("--no-log", action="store_true", help="don't write data/<team>/drives/drive_*.csv")
     p.add_argument("--vmax", type=float, default=A.V_MAX, help="arm mode: m/s at a full squeeze")
     p.add_argument("--wmax", type=float, default=A.W_MAX, help="arm mode: rad/s at full roll")
     p.add_argument("--bridge", default="ws://localhost:8765", help="bridge base URL (default %(default)s)")
