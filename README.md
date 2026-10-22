@@ -16,7 +16,7 @@ muscles (Myo armband), a classifier, the IMU, anything. Your controller sends si
 | **1. Set up and drive** (about 10 min) | [**STUDENT_GUIDE.md**](STUDENT_GUIDE.md): install, start the sim, drive, connect the Myo |
 | **2. Write your controller** | Copy [**`examples/controller_template.py`**](examples/controller_template.py) and edit its two functions (below) |
 | **3. Know how you're judged** | [**RUBRIC.md**](RUBRIC.md): judged runs, scoring, bonus points |
-| Kickoff slides | [`presentations/`](presentations/) |
+| Slides | [`presentations/`](presentations/): the kickoff, and **EMG On-Ramp** (new to EMG? start here) |
 | Live sim | https://ahrtlab.github.io/Hackathon/ (Chrome), or offline: `jackal-bridge --serve-site --open` |
 
 ## Your code

@@ -56,6 +56,9 @@ python examples/state_listener.py
 
 ## 4. The Myo armband
 
+New to EMG? Skim the **EMG On-Ramp** slides first (`presentations/EMG_On-Ramp.pptx`, 15 minutes):
+what the signal is, what the Myo measures, features, calibration, and what goes wrong.
+
 1. Quit **Myo Connect** if it's running (it holds the armband).
 2. Stream it to LSL over your laptop's Bluetooth (no dongle needed):
    ```bash

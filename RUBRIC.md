@@ -152,7 +152,7 @@ Bonus points are awarded on top of the 100-point base score by the judges.
 
 | When | Activity |
 |------|----------|
-| **Thursday [DATE TBD], [TIME]** | Kickoff: intro, install check, first drive |
+| **Thursday 10/22, 4:00 pm** | Kickoff: intro, install check, first drive |
 | **Friday 8:30 am** | Breakfast, hacking starts |
 | **Friday 12:00 pm** | Lunch |
 | **Friday 5:00 pm** | Hacking ends · judged runs · dinner |

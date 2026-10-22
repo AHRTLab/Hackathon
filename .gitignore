@@ -27,3 +27,6 @@ models/jackal/_src/
 staff/
 # Written by the Myo controllers next to wherever they are run
 myo_calibration.json
+
+# PowerPoint / Keynote lock files
+~$*

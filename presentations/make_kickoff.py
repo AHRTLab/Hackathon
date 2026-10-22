@@ -2,7 +2,7 @@
 """Builds AWARE-AI_Hackathon_Kickoff.pptx in the look of last term's BioRadio kickoff.
 
     pip install python-pptx
-    python make_kickoff.py
+    python make_kickoff.py           # refuses to overwrite the (hand-edited) .pptx; --force to do so
 
 It starts from assets/theme.pptx (the theme and master of last term's BioRadio kickoff, which is on
 the `2026-bioradio` branch) and draws every slide from shapes, as that deck does. Screenshots come from
@@ -130,21 +130,25 @@ class Deck:
     def picture(self, s, path: Path, x, y, w=None, h=None, border=CARD_LINE):
         pic = s.shapes.add_picture(str(path), Inches(x), Inches(y),
                                    Inches(w) if w else None, Inches(h) if h else None)
-        pic.line.color.rgb = rgb(border)
-        pic.line.width = Pt(1)
+        if border:
+            pic.line.color.rgb = rgb(border)
+            pic.line.width = Pt(1)
         return pic
 
-    def save(self) -> None:
+    def save(self, out: Path = None, force: bool = False) -> None:
+        out = out or OUT
+        if out.exists() and not force:  # the .pptx is edited by hand after it is generated
+            raise SystemExit(f"{out.name} exists (and may have hand edits); pass --force to overwrite it")
         n = len(self.slides)
         for i, s in enumerate(self.slides, 1):
             dark = i in (1, n)
             self.text(s, 8.85, 5.29, 0.9, 0.26, f"{i} / {n}", size=8, color="647896" if dark else GREY,
                       align=PP_ALIGN.RIGHT)
-        self.prs.save(str(OUT))
-        print(f"wrote {OUT} ({n} slides)")
+        self.prs.save(str(out))
+        print(f"wrote {out} ({n} slides)")
 
 
-def build() -> None:
+def build(force: bool = False) -> None:
     d = Deck()
     T = d.text
 
@@ -411,8 +415,9 @@ def build() -> None:
                                "Contact: jrheee@rit.edu"],
       size=14, color="C8D7E6", align=PP_ALIGN.CENTER, spacing=4)
 
-    d.save()
+    d.save(force=force)
 
 
 if __name__ == "__main__":
-    build()
+    import sys
+    build(force="--force" in sys.argv)
