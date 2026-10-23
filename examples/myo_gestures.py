@@ -350,7 +350,7 @@ class ArmMode:
 
     def recenter(self, imu: "Inlet", ready: int = 3, hold: float = 2.0) -> None:
         """Re-zero steering on the arm as the driver holds it to go straight."""
-        print("\nhold your arm the way you drive STRAIGHT (squeeze or not, as you drive)")
+        print("\nhold your arm FORWARD and LEVEL, the way you drive straight (raise it to start AFTER this)")
         for c in range(ready, 0, -1):
             print(f"\r  {c} …", end="", flush=True)
             time.sleep(1)
@@ -497,9 +497,6 @@ def blind_condition(folder: Path, sessions: int) -> tuple[bool, int, int]:
 
 
 def cmd_drive(args: argparse.Namespace) -> None:
-    if args.blind:
-        args.lag_comp, k, n = blind_condition(Path(args.folder), args.blind)
-        print(f"blind session {k}/{n} (condition hidden)")
     tuned = Path(args.folder) / "steering.json"
     if args.mode != "gestures" and tuned.exists():
         t = json.loads(tuned.read_text())
@@ -514,6 +511,9 @@ def cmd_drive(args: argparse.Namespace) -> None:
     window: deque = deque(maxlen=round(G.WINDOW_S * (emg.srate or 200.0)))
     if imu is not None and not args.no_recenter:
         mode.recenter(imu)
+    if args.blind:                                     # drawn only once the start has succeeded
+        args.lag_comp, k, n = blind_condition(Path(args.folder), args.blind)
+        print(f"blind session {k}/{n} (condition hidden)")
     log = DriveLog(Path(args.folder) / "drives", args.mode) if not args.no_log else None
 
     base = args.bridge.rstrip("/")
