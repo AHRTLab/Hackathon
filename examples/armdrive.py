@@ -30,6 +30,7 @@ ENGAGE_ON = 0.25     # fraction of the rest → fist range that starts the throt
 ENGAGE_OFF = 0.15    # ... and the lower one that stops it (hysteresis: no flicker at the edge)
 DEADZONE_DEG = 10.0  # roll inside this steers straight
 STEER_FULL = 0.7     # full turn at this fraction of your comfortable roll on that side
+EXPO = 0.5           # 0 = linear; higher = gentler near straight, still full at the end (RC expo)
 REVERSE_ON = 0.6     # fraction of your tip_down angle that selects reverse
 REVERSE_OFF = 0.45
 LEVER_GRIP_ON = 0.15  # lever mode: a light grip enables driving (relax = stop) ...
@@ -137,10 +138,11 @@ class ArmControl:
     """Squeeze (or lever: arm height, with a light grip as the enable) → speed, roll → steering,
     tip down → reverse gear. Stateful (hysteresis, smoothing)."""
 
-    def __init__(self, cal: Calibration, v_max: float = V_MAX, w_max: float = W_MAX, lever: bool = False):
+    def __init__(self, cal: Calibration, v_max: float = V_MAX, w_max: float = W_MAX, lever: bool = False,
+                 expo: float = EXPO):
         if lever and cal.tip_up > -15:
             raise ValueError("lever mode needs arm_up takes (forearm raised to where stop feels natural)")
-        self.cal, self.v_max, self.w_max, self.lever = cal, v_max, w_max, lever
+        self.cal, self.v_max, self.w_max, self.lever, self.expo = cal, v_max, w_max, lever, expo
         self.engaged = self.reverse = False
         self.g: np.ndarray | None = None
         self.last: dict = {}
@@ -153,8 +155,9 @@ class ArmControl:
     def steer(self, roll: float) -> float:
         side = self.cal.roll_left if roll > 0 else self.cal.roll_right
         full = max(STEER_FULL * abs(side), DEADZONE_DEG + 5)
-        s = np.clip((abs(roll) - DEADZONE_DEG) / (full - DEADZONE_DEG), 0, 1)
-        return float(math.copysign(s, roll))
+        s = float(np.clip((abs(roll) - DEADZONE_DEG) / (full - DEADZONE_DEG), 0, 1))
+        s = (1 - self.expo) * s + self.expo * s ** 3
+        return math.copysign(s, roll)
 
     def step(self, emg_window: np.ndarray) -> tuple[float, float, str]:
         c = self.cal

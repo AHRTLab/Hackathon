@@ -310,9 +310,9 @@ class GestureMode:
 class ArmMode:
     needs_imu = True
 
-    def __init__(self, folder: str, v_max: float, w_max: float, lever: bool = False):
+    def __init__(self, folder: str, v_max: float, w_max: float, lever: bool = False, expo: float = A.EXPO):
         try:
-            self.control = A.ArmControl(report_calibration(folder), v_max, w_max, lever)
+            self.control = A.ArmControl(report_calibration(folder), v_max, w_max, lever, expo)
         except ValueError as e:
             sys.exit(str(e))
 
@@ -404,7 +404,7 @@ class DriveLog:
 
 def cmd_drive(args: argparse.Namespace) -> None:
     mode = (GestureMode(args.folder) if args.mode == "gestures"
-            else ArmMode(args.folder, args.vmax, args.wmax, lever=args.mode == "lever"))
+            else ArmMode(args.folder, args.vmax, args.wmax, lever=args.mode == "lever", expo=args.expo))
     emg = Inlet(args.stream)
     imu = Inlet(args.imu_stream) if mode.needs_imu else None
     window: deque = deque(maxlen=round(G.WINDOW_S * (emg.srate or 200.0)))
@@ -510,6 +510,8 @@ def main() -> None:
     p.add_argument("--no-log", action="store_true", help="don't write data/<team>/drives/drive_*.csv")
     p.add_argument("--vmax", type=float, default=A.V_MAX, help="arm mode: m/s at a full squeeze")
     p.add_argument("--wmax", type=float, default=A.W_MAX, help="arm mode: rad/s at full roll")
+    p.add_argument("--expo", type=float, default=A.EXPO,
+                   help="arm mode: 0 = linear steering, up to 1 = much gentler near straight (default %(default)s)")
     p.add_argument("--bridge", default="ws://localhost:8765", help="bridge base URL (default %(default)s)")
     p.add_argument("--seconds", type=float, default=0, help="stop after N seconds (0 = until Ctrl+C)")
     streams(p)

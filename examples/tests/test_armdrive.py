@@ -166,3 +166,12 @@ def test_lever_needs_arm_up_takes():
     cal.tip_up = 0.0
     with pytest.raises(ValueError, match="arm_up"):
         A.ArmControl(cal, lever=True)
+
+
+def test_expo_softens_small_rolls_but_keeps_full_turn():
+    cal = toy_calibration()
+    lin, soft = A.ArmControl(cal, expo=0.0), A.ArmControl(cal, expo=0.5)
+    small = A.DEADZONE_DEG + 8
+    assert 0 < soft.steer(small) < lin.steer(small)
+    assert soft.steer(90) == lin.steer(90) == 1.0
+    assert lin.steer(-small) < soft.steer(-small) < 0             # right side softened too (own range)
