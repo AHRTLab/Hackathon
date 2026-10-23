@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import math
+from collections import deque
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -241,9 +242,11 @@ def train_brake(folder: str | Path) -> "G.LDA | None":
 
 
 # ------------------------------------------------------------------------------------- lidar assist
-def assist(v: float, w: float, state: dict) -> tuple[float, float, str]:
+def assist(v: float, w: float, state: dict, ahead: tuple[float, float, float] = (0.0, 0.0, 0.0)
+           ) -> tuple[float, float, str]:
     """Shared control: slow before an obstacle ahead and bend away from a close wall. The driver's
-    direction always wins; reverse is untouched (the lidar only sees forward)."""
+    direction always wins; reverse is untouched (the lidar only sees forward). `ahead` = (dx, dy, dθ):
+    judge from where the robot will be when this command lands (LagModel.in_flight), not where it is."""
     scan = state.get("scan") if state else None
     if not scan or v <= 0:
         return v, w, ""
@@ -251,6 +254,10 @@ def assist(v: float, w: float, state: dict) -> tuple[float, float, str]:
     ang = scan["angle_min"] + scan["angle_inc"] * np.arange(len(r))
     ok = np.isfinite(r) & (r < scan.get("range_max", 10.0))
     x, y = LIDAR_X + r[ok] * np.cos(ang[ok]), r[ok] * np.sin(ang[ok])   # robot frame, x forward
+    dx, dy, dth = ahead
+    if dx or dy or dth:                                   # into the predicted robot frame
+        c, s_ = math.cos(dth), math.sin(dth)
+        x, y = c * (x - dx) + s_ * (y - dy), -s_ * (x - dx) + c * (y - dy)
 
     # heading where we are going: points in the robot's swept corridor, curved by the turn rate
     ahead = x > ROBOT_HALF_LENGTH
@@ -276,6 +283,54 @@ def assist(v: float, w: float, state: dict) -> tuple[float, float, str]:
     if abs(nudge) > 0.05:
         note.append("nudge " + ("right" if nudge < 0 else "left"))
     return v2, w2, ", ".join(note)
+
+
+# ------------------------------------------------------------------------------------- link lag
+LAG_ON_S = 0.1        # compensate only when the measured command lag is at least this
+LAG_STEER_K = 1.0     # lag-aware steering: turn gain × 1 / (1 + K · lag s), e.g. 300 ms → 0.77
+
+
+class LagModel:
+    """Commands reach the robot `latency` s after we send them (the sim delays commands, not state).
+    Measured from state.cmd_echo_t (the `t` of the last applied command, protocol §2); the commands
+    still in flight say where the robot will be when the next one lands."""
+
+    def __init__(self, hz: float = 20.0):
+        self.hz = hz
+        self.sent: deque = deque(maxlen=200)          # (t_sent, v, w)
+        self.samples: deque = deque(maxlen=40)        # recent (arrival − echo) in s
+
+    def sent_cmd(self, t: float, v: float, w: float) -> None:
+        self.sent.append((t, v, w))
+
+    def observe(self, now: float, echo_t: float | None) -> None:
+        if echo_t:
+            self.samples.append(max(0.0, now - echo_t))
+
+    @property
+    def latency(self) -> float:
+        """The smallest recent lag: a dropped command only makes the echo look older, never newer."""
+        return min(self.samples) if self.samples else 0.0
+
+    def in_flight(self, now: float, dt: float = 0.01) -> tuple[float, float, float]:
+        """(dx, dy, dθ) the robot will move, in its current frame, before a command sent now lands."""
+        lag = self.latency
+        if lag < LAG_ON_S or not self.sent:
+            return 0.0, 0.0, 0.0
+        cmds = list(self.sent)
+        x = y = th = 0.0
+        i = 0
+        for k in range(int(lag / dt)):
+            due = now + k * dt - lag                  # commands sent up to here are being applied
+            while i + 1 < len(cmds) and cmds[i + 1][0] <= due:
+                i += 1
+            _, v, w = cmds[i] if cmds[i][0] <= due else (0, 0.0, 0.0)
+            x, y, th = x + v * math.cos(th) * dt, y + v * math.sin(th) * dt, th + w * dt
+        return x, y, th
+
+    def steer_gain(self, k: float = LAG_STEER_K) -> float:
+        lag = self.latency
+        return 1.0 / (1.0 + k * lag) if lag >= LAG_ON_S else 1.0
 
 
 # ------------------------------------------------------------------------------------- synthetic

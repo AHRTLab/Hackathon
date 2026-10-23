@@ -382,8 +382,9 @@ class ArmMode:
         return self.control.step(x)
 
 
-def follow_state(base: str) -> dict:
-    """The bridge's latest state message, kept fresh by a background thread (for the lidar assist)."""
+def follow_state(base: str, lag: "A.LagModel | None" = None) -> dict:
+    """The bridge's latest state message, kept fresh by a background thread (for the lidar assist);
+    also feeds the command-lag estimate from state.cmd_echo_t."""
     import threading
     from websockets.sync.client import connect
 
@@ -396,6 +397,8 @@ def follow_state(base: str) -> dict:
                     for raw in ws:
                         m = json.loads(raw)
                         if m.get("type") == "state":
+                            if lag is not None:
+                                lag.observe(time.time(), m.get("cmd_echo_t"))
                             state.clear()
                             state.update(m)
             except Exception:
@@ -483,18 +486,21 @@ def cmd_drive(args: argparse.Namespace) -> None:
 
     base = args.bridge.rstrip("/")
     bridge, state = None, {}
+    lag = A.LagModel(SEND_HZ)
     if args.dry_run:
         print("dry run: not driving")
     else:
         from websockets.sync.client import connect
         bridge = connect(base + "/cmd")
-        if not args.no_assist:
-            state = follow_state(base)
+        if not args.no_assist or args.lag_comp:
+            state = follow_state(base, lag)
         print(f"✓ connected to {base}" + ("" if args.no_assist else " (lidar assist on)") + ". Ctrl+C to stop.\n")
 
     def send(v: float, w: float) -> None:
         if bridge is not None:
-            bridge.send(json.dumps({"type": "cmd", "v": v, "w": w, "source": SOURCE}))
+            t = time.time()
+            bridge.send(json.dumps({"type": "cmd", "v": v, "w": w, "source": SOURCE, "t": t}))
+            lag.sent_cmd(t, v, w)
 
     t_end = time.monotonic() + args.seconds if args.seconds else None
     try:
@@ -509,14 +515,20 @@ def cmd_drive(args: argparse.Namespace) -> None:
                 v, w, line = 0.0, 0.0, "signal lost: stopped"
             else:
                 v, w, line = mode.step(np.asarray(window, dtype=float))
+                if args.lag_comp:
+                    w *= lag.steer_gain(args.lag_steer)
                 if not args.no_assist:
-                    v, w, note = A.assist(v, w, state)
+                    ahead = lag.in_flight(time.time()) if args.lag_comp else (0.0, 0.0, 0.0)
+                    v, w, note = A.assist(v, w, state, ahead)
                     line += f"  [{note}]" if note else ""
+                if lag.latency >= A.LAG_ON_S:
+                    line += f"  [lag {lag.latency * 1000:.0f} ms" + (" comp]" if args.lag_comp else "]")
                 if bridge is not None and not state and not args.no_assist:
                     line += "  [no sim state: is the sim tab open?]"
                 line += f"  →  v {v:+.2f}  w {w:+.2f}"
                 if log is not None:
-                    log.write(mode.last, v, w, state)
+                    log.write({**mode.last, "lag_ms": round(lag.latency * 1000), "lag_comp": args.lag_comp},
+                              v, w, state)
             send(v, w)
             print(f"\r  {line:<96s}", end="", flush=True)
             time.sleep(max(0.0, 1 / SEND_HZ - (time.monotonic() - t0)))
@@ -588,6 +600,11 @@ def main() -> None:
     p.add_argument("--dry-run", action="store_true", help="print decisions, don't send commands")
     p.add_argument("--no-assist", action="store_true", help="switch the lidar assist off")
     p.add_argument("--no-recenter", action="store_true", help="arm mode: skip re-zeroing straight at start")
+    p.add_argument("--lag-comp", action="store_true",
+                   help="measure command lag; when it's ≥100 ms, soften steering and run the assist from where "
+                        "the robot will be when each command lands")
+    p.add_argument("--lag-steer", type=float, default=A.LAG_STEER_K,
+                   help="--lag-comp steering softening: gain × 1/(1 + K·lag s) (default %(default)s)")
     p.add_argument("--no-log", action="store_true", help="don't write data/<team>/drives/drive_*.csv")
     p.add_argument("--vmax", type=float, default=A.V_MAX, help="arm mode: m/s at a full squeeze")
     p.add_argument("--wmax", type=float, default=A.W_MAX, help="arm mode: rad/s at full roll")

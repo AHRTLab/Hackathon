@@ -254,3 +254,59 @@ def test_train_brake_needs_other_active_poses(tmp_path):
     G.write_take(tmp_path / "roll_left.csv",
                  G.Take("roll_left", G.synth_emg(np.roll(G.toy_rms()["forward"], 4), 2.0, 200.0, rng), 200.0), "t", "x")
     assert A.train_brake(tmp_path) is not None
+
+
+# ------------------------------------------------------------------- link lag (model of the sim's impairment)
+def wall_scan(gap_from_lidar: float) -> dict:
+    """Lidar scan of a flat wall `gap_from_lidar` m ahead of the lidar."""
+    ang = -2.356 + 0.02618 * np.arange(180)
+    c = np.cos(ang)
+    r = np.where(c > 1e-3, gap_from_lidar / np.clip(c, 1e-3, None), 10.0)
+    return {"scan": {"angle_min": -2.356, "angle_inc": 0.02618, "range_max": 10.0, "ranges": np.minimum(r, 10).tolist()}}
+
+
+def drive_at_wall(latency: float, compensate: bool, wall=3.0, hz=20.0, seconds=6.0):
+    """Full throttle at a wall through a link that delays every command by `latency` (as the sim's
+    impairment does). Returns the closest the front bumper got to the wall (m; < 0 = collision)."""
+    lag = A.LagModel(hz)
+    queue, applied, vel, x = [], (0.0, 0.0), 0.0, 0.0
+    dt, closest = 0.01, wall
+    for k in range(int(seconds / dt)):
+        now = k * dt
+        if k % int(1 / (hz * dt)) == 0:                          # controller tick
+            if queue:
+                lag.observe(now, max((t for t, _, _ in queue if t + latency <= now), default=None))
+            front = wall - x - A.LIDAR_X
+            ahead = lag.in_flight(now) if compensate else (0.0, 0.0, 0.0)
+            v, w, _ = A.assist(1.0, 0.0, wall_scan(front), ahead)
+            queue.append((now, v, w))
+            lag.sent_cmd(now, v, w)
+        while queue and queue[0][0] + latency <= now:            # the link releases late commands
+            applied = queue.pop(0)[1:]
+        target = applied[0]
+        a = 2.0 if target > vel else -4.0                        # protocol: speed up 2 m/s², brake 4 m/s²
+        vel = min(target, vel + a * dt) if a > 0 else max(target, vel + a * dt)
+        x += vel * dt
+        closest = min(closest, wall - x - A.ROBOT_HALF_LENGTH)
+    return closest
+
+
+def test_lag_model_measures_latency_and_predicts_the_in_flight_path():
+    lag = A.LagModel()
+    for i in range(20):
+        lag.sent_cmd(i * 0.05, 1.0, 0.0)
+        lag.observe(i * 0.05, i * 0.05 - 0.3 if i * 0.05 >= 0.3 else None)
+    assert lag.latency == pytest.approx(0.3, abs=1e-9)
+    dx, dy, dth = lag.in_flight(0.95)
+    assert dx == pytest.approx(0.3, abs=0.02) and abs(dy) < 1e-6 and dth == 0  # 300 ms at 1 m/s still to come
+    assert lag.steer_gain() == pytest.approx(1 / 1.3)
+    quick = A.LagModel()
+    quick.observe(1.0, 0.98)
+    assert quick.in_flight(1.0) == (0.0, 0.0, 0.0) and quick.steer_gain() == 1.0   # 20 ms: no compensation
+
+
+def test_lag_compensation_keeps_the_assist_margin_as_lag_grows():
+    assert drive_at_wall(0.0, False) == pytest.approx(drive_at_wall(0.0, True))   # no lag: identical
+    for lag in (0.3, 0.5):
+        assert drive_at_wall(lag, True) >= drive_at_wall(lag, False)
+    assert drive_at_wall(0.5, False) < 0.05 < 0.1 < drive_at_wall(0.5, True)      # 500 ms: plain nearly hits
