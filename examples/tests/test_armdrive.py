@@ -222,3 +222,35 @@ def test_steering_tuned_from_drive_logs(tmp_path):
     assert tuned["full_right"] < tuned["full_left"]
     with pytest.raises(ValueError):
         M.steering_from_logs([])
+
+
+def test_brake_pattern_ignores_strong_non_fist_activity():
+    # a "turning" pattern as strong as the fist, but on other electrodes, must not brake
+    rms = G.toy_rms()
+    turning = np.roll(rms["forward"], 4)                         # same strength, different muscles
+    takes = {"forward": rms["forward"], "rest": rms["rest"], "roll_left": turning}
+    X, y = [], []
+    for label, r in takes.items():
+        for w in G.windows(G.synth_emg(r, 4.0, 200.0, RNG), 200.0):
+            X.append(G.features(w))
+            y.append("forward" if label == "forward" else "rest")
+    model = G.LDA().fit(np.array(X), y)
+    c = A.ArmControl(toy_calibration(), lever=True, brake_model=model)
+    lever_drive(c, "arm_up", rms["rest"])
+    for _ in range(5):
+        v, _, line = lever_drive(c, "neutral", turning)
+    assert v > 0 and "BRAKE" not in line
+    for _ in range(4):
+        v, _, line = lever_drive(c, "neutral", rms["forward"])
+    assert v == 0 and "BRAKE" in line
+
+
+def test_train_brake_needs_other_active_poses(tmp_path):
+    rng = np.random.default_rng(1)
+    for label in ("forward", "rest"):
+        G.write_take(tmp_path / f"{label}.csv", G.Take(label, G.synth_emg(G.toy_rms()[label], 2.0, 200.0, rng), 200.0),
+                     "t", "x")
+    assert A.train_brake(tmp_path) is None                       # only rest to compare with: level rule
+    G.write_take(tmp_path / "roll_left.csv",
+                 G.Take("roll_left", G.synth_emg(np.roll(G.toy_rms()["forward"], 4), 2.0, 200.0, rng), 200.0), "t", "x")
+    assert A.train_brake(tmp_path) is not None

@@ -335,8 +335,12 @@ class ArmMode:
     def __init__(self, folder: str, v_max: float, w_max: float, lever: bool = False, expo: float = A.EXPO,
                  grip: bool = False, full_left: float = 0.0, full_right: float = 0.0):
         try:
+            brake = A.train_brake(folder) if lever and not grip else None
             self.control = A.ArmControl(report_calibration(folder), v_max, w_max, lever, expo, grip,
-                                        full_left, full_right)
+                                        full_left, full_right, brake)
+            if lever and not grip:
+                print("  brake:    " + ("fist pattern (trained on your brake vs other takes)" if brake
+                                        else "level only: record other poses (`record`) for the pattern check"))
         except ValueError as e:
             sys.exit(str(e))
 

@@ -38,6 +38,9 @@ LEVER_GRIP_OFF = 0.08
 BRAKE_ON = 0.6       # no-grip lever: fist brake at this fraction of the rest → fist range. Holding and
 BRAKE_OFF = 0.45     # rolling the arm alone reads up to ~0.35 of it (AJ, L2 lever run, 2026-10-22)
 BRAKE_FRAMES = 3     # ... held this many commands (150 ms) so a twitch can't brake
+BRAKE_P = 0.9        # with brake takes and other active takes: the fist must also LOOK like your fist
+BRAKE_MIN = 0.35     # ... and reach this fraction of the range (turning muscles are a different pattern)
+NOT_BRAKE = ("rest", "roll_left", "roll_right", "arm_up", "tip_down", "left", "right", "reverse")
 LEVER_STOP = 0.6      # ... arm raised past this fraction of arm_up: stopped
 LEVER_FULL = 0.15     # raised less than this fraction (about level): full speed
 ENVELOPE = 1.5       # roll or tip beyond this × your calibrated range (or tipped up as far as
@@ -142,11 +145,13 @@ class ArmControl:
     tip down → reverse gear. Stateful (hysteresis, smoothing)."""
 
     def __init__(self, cal: Calibration, v_max: float = V_MAX, w_max: float = W_MAX, lever: bool = False,
-                 expo: float = EXPO, grip: bool = False, full_left: float = 0.0, full_right: float = 0.0):
+                 expo: float = EXPO, grip: bool = False, full_left: float = 0.0, full_right: float = 0.0,
+                 brake_model: "G.LDA | None" = None):
         if lever and cal.tip_up > -15:
             raise ValueError("lever mode needs arm_up takes (forearm raised to where stop feels natural)")
         self.cal, self.v_max, self.w_max, self.lever, self.expo = cal, v_max, w_max, lever, expo
         self.full = {1: full_left, -1: full_right}     # degrees from straight for a full turn; 0 = from calibration
+        self.brake_model = brake_model
         self.grip = grip or not lever          # lever without --grip: no squeeze needed; a fist brakes
         self.armed = not lever or grip         # no-grip lever drives only after the arm was raised once
         self.engaged = self.reverse = self.braking = False
@@ -175,7 +180,12 @@ class ArmControl:
             self.engaged = frac > (off if self.engaged else on)
             brake = False
         else:                                          # no-grip lever: a firm fist is the brake
-            self.squeezing = (self.squeezing + 1) if frac > (BRAKE_OFF if self.braking else BRAKE_ON) else 0
+            if self.brake_model is not None:
+                p = float(self.brake_model.proba(G.features(emg_window))[0][self.brake_model.classes.index("forward")])
+                fist = p >= BRAKE_P and frac > BRAKE_MIN
+            else:
+                fist = frac > (BRAKE_OFF if self.braking else BRAKE_ON)
+            self.squeezing = (self.squeezing + 1) if fist else 0
             self.braking = self.squeezing >= (1 if self.braking else BRAKE_FRAMES)
             brake, self.engaged = self.braking, not self.braking
         roll, tip = c.angles(self.g) if self.g is not None else (0.0, 0.0)
@@ -195,7 +205,8 @@ class ArmControl:
         if outside and not self.grip:
             self.armed = False                         # left the driving pose: raise the arm to re-arm
         self.last = {"level": level, "roll": roll, "tip": tip, "engaged": self.engaged, "brake": brake,
-                     "armed": self.armed, "reverse": self.reverse, "outside": outside}
+                     "armed": self.armed, "reverse": self.reverse, "outside": outside,
+                     **{f"f{i}": round(float(v), 4) for i, v in enumerate(G.features(emg_window))}}
         where = f"level {level:5.1f}  roll {roll:+4.0f}°  tip {tip:+4.0f}°"
         if outside:
             return 0.0, 0.0, f"arm out of driving pose: stopped  {where}"
@@ -211,6 +222,21 @@ class ArmControl:
             v = self.v_max * throttle
             w = self.w_max * self.steer(roll) if throttle > 0 else 0.0
         return v, w, f"{'R' if self.reverse else 'D'} go    {where}"
+
+
+def train_brake(folder: str | Path) -> "G.LDA | None":
+    """Fist (EMG takes labelled forward) vs every other recorded EMG pose, or None if the folder has no
+    active non-fist takes to learn the difference from (then the brake falls back to the level rule)."""
+    found, _ = G.load_recordings(folder, "Myo_EMG", ("forward",) + NOT_BRAKE, 8)
+    if not any(label == "forward" for label, *_ in found) or not any(label not in ("forward", "rest")
+                                                                      for label, *_ in found):
+        return None
+    X, y = [], []
+    for label, x, srate, _ in found:
+        for w in G.windows(x, srate or 200.0):
+            X.append(G.features(w))
+            y.append("forward" if label == "forward" else "rest")
+    return G.LDA().fit(np.array(X), y)
 
 
 # ------------------------------------------------------------------------------------- lidar assist
