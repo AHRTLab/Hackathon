@@ -176,6 +176,7 @@ class ArmControl:
     def step(self, emg_window: np.ndarray) -> tuple[float, float, str]:
         c = self.cal
         level = emg_level(emg_window)
+        feats = G.features(emg_window)
         frac = (level - c.rest_level) / max(c.fist_level - c.rest_level, 1e-6)
         if self.grip:                                  # squeeze (or lever's light grip) enables
             on, off = (LEVER_GRIP_ON, LEVER_GRIP_OFF) if self.lever else (ENGAGE_ON, ENGAGE_OFF)
@@ -183,7 +184,7 @@ class ArmControl:
             brake = False
         else:                                          # no-grip lever: a firm fist is the brake
             if self.brake_model is not None:
-                p = float(self.brake_model.proba(G.features(emg_window))[0][self.brake_model.classes.index("forward")])
+                p = float(self.brake_model.proba(feats)[0][self.brake_model.classes.index("forward")])
                 fist = p >= BRAKE_P and frac > BRAKE_MIN
             else:
                 fist = frac > (BRAKE_OFF if self.braking else BRAKE_ON)
@@ -208,7 +209,7 @@ class ArmControl:
             self.armed = False                         # left the driving pose: raise the arm to re-arm
         self.last = {"level": level, "roll": roll, "tip": tip, "engaged": self.engaged, "brake": brake,
                      "armed": self.armed, "reverse": self.reverse, "outside": outside,
-                     **{f"f{i}": round(float(v), 4) for i, v in enumerate(G.features(emg_window))}}
+                     **{f"f{i}": round(float(v), 4) for i, v in enumerate(feats)}}
         where = f"level {level:5.1f}  roll {roll:+4.0f}°  tip {tip:+4.0f}°"
         if outside:
             return 0.0, 0.0, f"arm out of driving pose: stopped  {where}"
@@ -274,7 +275,7 @@ def assist(v: float, w: float, state: dict, ahead: tuple[float, float, float] = 
         near = beside & (np.sign(y) == sign) & (side_gap < SIDE_GAP)
         if near.any():
             push -= sign * (1 - max(float(side_gap[near].min()), 0) / SIDE_GAP)
-    nudge = NUDGE_MAX * float(np.clip(push, -1, 1))
+    nudge = NUDGE_MAX * float(np.clip(push, -1, 1)) * scale   # stopped at a wall: no turning on its own
 
     v2, w2 = v * scale, w + nudge
     note = []

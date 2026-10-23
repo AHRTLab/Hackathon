@@ -43,10 +43,8 @@ SQUEEZE_LEVEL = 48.4  # same run, 95th percentile while squeezing
 # ------------------------------------------------------------------------------------- features
 def features(window: np.ndarray) -> np.ndarray:
     """(n, 8) EMG → 16 features: log RMS and log waveform length per channel (offset removed)."""
-    x = window - window.mean(axis=0)
-    rms = np.sqrt(np.mean(np.square(x), axis=0))
-    wl = np.mean(np.abs(np.diff(x, axis=0)), axis=0)
-    return np.log1p(np.concatenate([rms, wl]))
+    wl = np.mean(np.abs(np.diff(window, axis=0)), axis=0)   # the offset cancels in a difference
+    return np.log1p(np.concatenate([channel_rms(window), wl]))
 
 
 def channel_rms(window: np.ndarray) -> np.ndarray:
@@ -84,17 +82,38 @@ def load_recordings(folder: str | Path, stream: str, labels: tuple[str, ...], ch
 
     found, notes = [], []
     for path in sorted(Path(folder).rglob("*.csv")):
-        meta, data = load_recording(path)
-        if meta.get("stream", stream) != stream:
+        head = recording_header(path)
+        if "label" not in head:
+            continue                                    # not a recording: a drive log, a key file, …
+        label = head["label"].strip().lower().split("-")[0]
+        if head.get("stream", stream) != stream or label not in labels:
             continue
-        label = str(meta.get("label", "")).strip().lower().split("-")[0]
-        if label not in labels:
+        try:
+            meta, data = load_recording(path)
+        except (ValueError, IndexError, OSError) as e:
+            notes.append(f"skipped {path.name}: unreadable ({e.__class__.__name__})")
             continue
         if data.ndim != 2 or data.shape[1] != channels + 1:
             notes.append(f"skipped {path.name}: expected timestamp + {channels} channels")
             continue
         found.append((label, data[:, 1:].astype(float), float(meta.get("sample_rate", 0.0)), str(path)))
     return found, notes
+
+
+def recording_header(path: Path) -> dict[str, str]:
+    """The `# key: value` lines at the top of a recording, read without parsing its data."""
+    head: dict[str, str] = {}
+    try:
+        with open(path) as f:
+            for line in f:
+                if not line.startswith("#"):
+                    break
+                key, sep, value = line[1:].partition(":")
+                if sep:
+                    head[key.strip()] = value.strip()
+    except OSError:
+        pass
+    return head
 
 
 def load_takes(folder: str | Path) -> tuple[list[Take], list[str]]:

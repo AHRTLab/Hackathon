@@ -164,8 +164,8 @@ class Inlet:
 def cmd_fake(args: argparse.Namespace) -> None:
     from pylsl import StreamInfo, StreamOutlet, cf_float32, cf_string, local_clock
 
-    rms = G.measured_rms(load(args.from_)) if args.from_ else G.toy_rms()
-    grav = A.measured_gravity(args.from_) if args.from_ else A.toy_gravity()
+    rms = {**G.toy_rms(), **(G.measured_rms(load(args.from_)) if args.from_ else {})}
+    grav = {**A.toy_gravity(), **(A.measured_gravity(args.from_) if args.from_ else {})}
 
     def outlet(name: str, kind: str, labels: list[str], srate: float) -> StreamOutlet:
         info = StreamInfo(name, kind, len(labels), srate, cf_float32, f"fake-{name}")
@@ -183,6 +183,8 @@ def cmd_fake(args: argparse.Namespace) -> None:
         for part in args.script.split(","):
             what, secs = part.rsplit(":", 1)
             gesture, _, pose = what.strip().partition("@")
+            if gesture not in rms or (pose and pose not in grav):
+                sys.exit(f"--script: unknown '{what.strip()}' (gestures {', '.join(rms)}; poses {', '.join(grav)})")
             script.append((gesture, pose or "neutral", float(secs)))
     interactive = script is None and sys.stdin.isatty()
     if script is None and not interactive:
@@ -384,13 +386,19 @@ class ArmMode:
         return self.control.step(x)
 
 
-def follow_state(base: str, lag: "A.LagModel | None" = None) -> dict:
+class StateBox:
+    """The latest state message. The reader thread swaps in a whole new dict, never edits one in place,
+    so the control loop always sees a complete message."""
+    latest: dict = {}
+
+
+def follow_state(base: str, lag: "A.LagModel | None" = None) -> StateBox:
     """The bridge's latest state message, kept fresh by a background thread (for the lidar assist);
     also feeds the command-lag estimate from state.cmd_echo_t."""
     import threading
     from websockets.sync.client import connect
 
-    state: dict = {}
+    box = StateBox()
 
     def run() -> None:
         while True:
@@ -401,13 +409,12 @@ def follow_state(base: str, lag: "A.LagModel | None" = None) -> dict:
                         if m.get("type") == "state":
                             if lag is not None:
                                 lag.observe(time.time(), m.get("cmd_echo_t"))
-                            state.clear()
-                            state.update(m)
+                            box.latest = m
             except Exception:
                 time.sleep(1.0)
 
     threading.Thread(target=run, daemon=True).start()
-    return state
+    return box
 
 
 class DriveLog:
@@ -448,7 +455,8 @@ def steering_from_logs(paths: list[Path]) -> dict[str, float]:
         for r in csv.DictReader(open(p)):
             if "roll" not in r or r.get("outside") == "True" or float(r.get("v") or 0) <= 0.05:
                 continue
-            (left if float(r["roll"]) > 0 else right).append(abs(float(r["roll"])))
+            if abs(float(r["roll"])) > A.DEADZONE_DEG:   # turning, not straight-line wobble
+                (left if float(r["roll"]) > 0 else right).append(abs(float(r["roll"])))
     if len(left) < 20 or len(right) < 20:
         raise ValueError("not enough turning in these logs: drive a course with both left and right turns")
     return {"full_left": round(STEER_REACH * float(np.percentile(left, 95)), 1),
@@ -477,6 +485,9 @@ def blind_condition(folder: Path, sessions: int) -> tuple[bool, int, int]:
     d.mkdir(parents=True, exist_ok=True)
     sched = d / "schedule.json"
     plan = json.loads(sched.read_text()) if sched.exists() else None
+    if plan is not None and plan["next"] < len(plan["order"]) and len(plan["order"]) != sessions:
+        sys.exit(f"a {len(plan['order'])}-session blind schedule is under way here ({plan['next']} done): "
+                 f"finish it with --blind {len(plan['order'])}, or move {d} aside to start over")
     if plan is None or plan["next"] >= len(plan["order"]):
         order = [True, False] * (sessions // 2)
         for i in range(len(order) - 1, 0, -1):          # Fisher-Yates with a CSPRNG
@@ -497,6 +508,10 @@ def blind_condition(folder: Path, sessions: int) -> tuple[bool, int, int]:
 
 
 def cmd_drive(args: argparse.Namespace) -> None:
+    if args.blind and args.dry_run:
+        sys.exit("--blind needs a real drive (a dry run would use up a hidden session)")
+    if args.blind and (args.blind < 2 or args.blind % 2):
+        sys.exit("--blind N needs an even N of at least 2 (half on, half off)")
     tuned = Path(args.folder) / "steering.json"
     if args.mode != "gestures" and tuned.exists():
         t = json.loads(tuned.read_text())
@@ -511,22 +526,22 @@ def cmd_drive(args: argparse.Namespace) -> None:
     window: deque = deque(maxlen=round(G.WINDOW_S * (emg.srate or 200.0)))
     if imu is not None and not args.no_recenter:
         mode.recenter(imu)
-    if args.blind:                                     # drawn only once the start has succeeded
-        args.lag_comp, k, n = blind_condition(Path(args.folder), args.blind)
-        print(f"blind session {k}/{n} (condition hidden)")
-    log = DriveLog(Path(args.folder) / "drives", args.mode) if not args.no_log else None
 
     base = args.bridge.rstrip("/")
-    bridge, state = None, {}
+    bridge, box = None, None
     lag = A.LagModel(SEND_HZ)
     if args.dry_run:
         print("dry run: not driving")
     else:
         from websockets.sync.client import connect
         bridge = connect(base + "/cmd")
+        if args.blind:                                 # drawn only once the start has succeeded
+            args.lag_comp, k, n = blind_condition(Path(args.folder), args.blind)
+            print(f"blind session {k}/{n} (condition hidden)")
         if not args.no_assist or args.lag_comp:
-            state = follow_state(base, lag)
+            box = follow_state(base, lag)
         print(f"✓ connected to {base}" + ("" if args.no_assist else " (lidar assist on)") + ". Ctrl+C to stop.\n")
+    log = DriveLog(Path(args.folder) / "drives", args.mode) if not args.no_log else None
 
     def send(v: float, w: float) -> None:
         if bridge is not None:
@@ -538,6 +553,7 @@ def cmd_drive(args: argparse.Namespace) -> None:
     try:
         while t_end is None or time.monotonic() < t_end:
             t0 = time.monotonic()
+            state = box.latest if box is not None else {}   # one consistent snapshot per tick
             window.extend(emg.pull())
             if imu is not None:
                 mode.feed_imu(imu.pull(), imu.srate or IMU_HZ)

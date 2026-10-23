@@ -218,7 +218,8 @@ def test_steering_tuned_from_drive_logs(tmp_path):
     rolls = list(np.linspace(0, 70, 60)) + list(np.linspace(0, -32, 60))
     log.write_text("t,roll,outside,v\n" + "".join(f"{i},{r},False,0.5\n" for i, r in enumerate(rolls)))
     tuned = M.steering_from_logs([log])
-    assert tuned["full_left"] == pytest.approx(M.STEER_REACH * np.percentile(rolls[:60], 95), abs=0.1)
+    turning = [r for r in rolls[:60] if r > A.DEADZONE_DEG]
+    assert tuned["full_left"] == pytest.approx(M.STEER_REACH * np.percentile(turning, 95), abs=0.1)
     assert tuned["full_right"] < tuned["full_left"]
     with pytest.raises(ValueError):
         M.steering_from_logs([])
@@ -319,3 +320,51 @@ def test_blind_schedule_is_balanced_hidden_and_renews(tmp_path):
     assert M.blind_condition(tmp_path, 8)[1] == 1                    # used up: a fresh schedule starts
     key = (tmp_path / "blind" / "key.csv").read_text().splitlines()
     assert key[0] == "session,of,started,lag_comp" and len(key) == 10
+
+
+# ------------------------------------------------------------------- review round 1 regressions
+def test_a_truncated_drive_log_or_key_file_never_breaks_loading(tmp_path):
+    rng = np.random.default_rng(2)
+    for label in ("rest", "forward"):
+        G.write_take(tmp_path / f"{label}.csv", G.Take(label, G.synth_emg(G.toy_rms()[label], 2.0, 200.0, rng), 200.0),
+                     "t", "x")
+    for p, g in A.toy_gravity().items():
+        G.write_take(tmp_path / f"{p}.csv", G.Take(p, A.synth_imu(g, 2.0, 50.0, rng), 50.0), "t", "x",
+                     "Myo_IMU", A.IMU_CHANNELS)
+    (tmp_path / "drives").mkdir()
+    (tmp_path / "drives" / "drive_1_lever.csv").write_text("t,level,roll\n0.1,2.0,3.0\n0.2,2.1")   # cut mid-row
+    (tmp_path / "blind").mkdir()
+    (tmp_path / "blind" / "key.csv").write_text("session,of,started,lag_comp\n1,8,x,True\n")
+    (tmp_path / "rest_cut.csv").write_text("# label: rest\n# stream: Myo_EMG\n#\ntimestamp,a,b\n0,1\n1,2,3,4\n")
+    cal, notes = A.load_calibration(tmp_path)
+    assert cal.fist_level > cal.rest_level
+    takes, notes = G.load_takes(tmp_path)
+    assert {t.label for t in takes} == {"rest", "forward"}
+
+
+def test_blind_schedule_refuses_a_different_length_mid_way(tmp_path):
+    import myo_gestures as M
+    M.blind_condition(tmp_path, 8)
+    with pytest.raises(SystemExit, match="8-session"):
+        M.blind_condition(tmp_path, 4)
+
+
+def test_assist_never_turns_a_stopped_robot_on_its_own():
+    ang = -2.356 + 0.02618 * np.arange(180)
+    ahead = A.ROBOT_HALF_LENGTH - A.LIDAR_X + 0.05              # wall just in front of the bumper
+    side = A.ROBOT_HALF_WIDTH + 0.05                           # and a wall close on the left
+    r = np.full(180, 10.0)
+    r = np.where(np.cos(ang) > 1e-3, np.minimum(r, ahead / np.clip(np.cos(ang), 1e-3, None)), r)
+    r = np.where(np.sin(ang) > 1e-3, np.minimum(r, side / np.clip(np.sin(ang), 1e-3, None)), r)
+    v, w, _ = A.assist(1.0, 0.0, {"scan": {"angle_min": -2.356, "angle_inc": 0.02618, "range_max": 10.0,
+                                            "ranges": r.tolist()}})
+    assert v == 0 and w == 0
+
+
+def test_steering_tuning_ignores_straight_line_wobble(tmp_path):
+    import myo_gestures as M
+    log = tmp_path / "drive_1_lever.csv"
+    rolls = [3.0, -3.0] * 400 + list(np.linspace(20, 60, 40)) + list(np.linspace(-20, -40, 40))  # mostly straight
+    log.write_text("t,roll,outside,v\n" + "".join(f"{i},{r},False,0.5\n" for i, r in enumerate(rolls)))
+    tuned = M.steering_from_logs([log])
+    assert tuned["full_left"] > 40 and tuned["full_right"] > 25      # from the turns, not the wobble
