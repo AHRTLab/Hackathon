@@ -29,11 +29,9 @@ from __future__ import annotations
 
 import argparse
 import json
-import select
+import socket
 import sys
-import termios
 import time
-import tty
 from collections import deque
 from datetime import datetime
 from pathlib import Path
@@ -146,6 +144,8 @@ class Inlet:
         found = []
         while not found:
             found = pylsl.resolve_byprop("name", name, timeout=3.0)
+        here = [s for s in found if s.hostname() == socket.gethostname()]
+        found = here or found                         # another team's stream on the same Wi-Fi has this name too
         self.name, self.srate = name, found[0].nominal_srate()
         self.inlet = pylsl.StreamInlet(found[0], max_buflen=2)
         self.last = float("-inf")                     # stale until the first sample arrives
@@ -187,6 +187,10 @@ def cmd_fake(args: argparse.Namespace) -> None:
                 sys.exit(f"--script: unknown '{what.strip()}' (gestures {', '.join(rms)}; poses {', '.join(grav)})")
             script.append((gesture, pose or "neutral", float(secs)))
     interactive = script is None and sys.stdin.isatty()
+    if interactive:
+        import select                                   # POSIX only: the rest of this file runs on Windows too
+        import termios
+        import tty
     if script is None and not interactive:
         sys.exit("no keyboard here: pass --script")
     print(f"publishing {args.stream} + {args.imu_stream}"
@@ -691,7 +695,11 @@ def main() -> None:
     p.set_defaults(fn=cmd_drive)
 
     args = ap.parse_args()
-    args.fn(args)
+    try:
+        args.fn(args)
+    except KeyboardInterrupt:
+        print("\nstopped")
+        sys.exit(130)
 
 
 if __name__ == "__main__":

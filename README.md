@@ -9,6 +9,21 @@ muscles (Myo armband), a classifier, the IMU, anything. Your controller sends si
                  ◄──  state: pose, speed, lidar, course progress (20 Hz)
 ```
 
+## Drive with your arm: one command
+
+Our team's controller drives the Jackal from forearm angle and grip, read by the Myo armband. To try it:
+
+```bash
+git clone https://github.com/ajbarea/Hackathon.git && cd Hackathon
+conda env create -f environment.yml          # once, about 5 minutes
+conda activate jackal
+python examples/lever.py <your name>
+```
+
+It connects to the Myo, calibrates you the first time (about 2.5 minutes of guided poses), opens the
+sim in your browser, and drives. How to drive, and what we measured:
+[**examples/MYO_LEVER.md**](examples/MYO_LEVER.md).
+
 ## Start here
 
 | | |

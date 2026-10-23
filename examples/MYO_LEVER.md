@@ -1,46 +1,59 @@
-<!-- budget: 550 words -->
+<!-- budget: 650 words -->
 # Myo lever controller
 
-Drive the Jackal with your forearm: arm forward to go (lower = faster), arm up to stop, roll your forearm
-to steer, tip it down to reverse. A firm fist held for 0.4 s brakes. Relaxing your hand never moves the
-robot: speed comes from arm height alone. A lidar assist slows before obstacles, and lag compensation
-switches on by itself when the link is slow.
+Drive the Jackal with your forearm. The Myo armband's motion sensor reads your arm's angle, and a firm
+fist brakes. Relaxing your hand never moves the robot. A lidar assist slows before obstacles, and lag
+compensation switches on by itself when the link is slow.
 
-Code: `myo_gestures.py` (command line), `armdrive.py` (arm angles, lever, brake, assist, lag),
-`gestures.py` (EMG features, LDA, recordings). Tests: `pytest examples/tests`.
+## Drive in one command
 
-## Your first drive
-
-With the hackathon env active, the Myo publisher running (`python examples/myo_lsl_publisher.py`) and
-the bridge plus sim open (`jackal-bridge --serve-site --open`):
+Install once, quit Myo Connect, then run one command:
 
 ```bash
-python examples/myo_gestures.py record data/<you>-lever            # guided, about 2.5 min
-python examples/myo_gestures.py drive data/<you>-lever --mode lever
+git clone https://github.com/ajbarea/Hackathon.git && cd Hackathon
+conda env create -f environment.yml          # once, about 5 minutes
+conda activate jackal                        # in every new terminal
+python examples/lever.py <your name>
 ```
 
-`record` prompts six poses (GO, STOP, LEFT, RIGHT, REVERSE, BRAKE) at 2, 3 and 5 s. At the start of
-`drive`, hold your arm forward and level for the countdown, then raise it once to start.
+That command does the rest:
 
-If `drive` refuses to start because your straight pose doesn't fit, the band has moved: run `record`
-into a new folder. Recalibrate every time the band comes off.
+1. **Connects to our Myo.** On a Mac, allow Bluetooth for your terminal if asked.
+2. **Calibrates you, the first time only** (about 2.5 minutes). Put the band on snugly, on the thickest
+   part of your forearm, and wait 2 minutes for it to warm up. Then hold six poses as it prompts you,
+   the way you'll really drive. Your calibration is saved in `data/<your name>-lever`.
+3. **Opens the sim in your browser and drives.** Pick a course (bottom right). Hold your arm forward
+   and level for the countdown, then raise it once to start.
+4. **Ctrl+C ends a drive.** Then press Enter to drive again, `r` to recalibrate, `t` to tune the
+   turns, or `q` to quit. Quitting stops everything it started.
+
+Next time, the same command skips straight to driving. Recalibrate (`r`) whenever the band comes off,
+or when the drive says the band has moved. Using a different armband: add `--addr nearest`.
+
+| Your arm | The robot |
+|---|---|
+| Forward, level | Goes. Lower your arm to go faster |
+| Raised from the elbow | Stops |
+| Rolled left or right | Turns |
+| Tipped down | Reverses |
+| Firm fist, held 0.4 s | Brakes |
 
 ## Tuning
 
-- Turns feel uneven: drive a course, then `python examples/myo_gestures.py steering data/<you>-lever`.
-  It sets each side's full-turn roll from how far you actually rolled (`steering.json`).
-- Gentler or sharper near straight: `--expo` (0 = linear, default 0.5).
-- Top speed and turn rate: `--vmax`, `--wmax`.
-- Switch off a helper: `--no-assist` (lidar), `--no-lag-comp`.
+- Turns feel uneven: drive a course or two, then press `t`. It sets each side's full turn from how far
+  you actually rolled (`steering.json`).
+- Every drive writes `drives/drive_*.csv` in your calibration folder (`data/<you>-lever`, then
+  `-lever-2` after a recalibration), one row per command at 20 per second. Read them to see why
+  something felt wrong.
+- More settings (`--expo`, `--vmax`, `--wmax`, `--no-assist`, `--no-lag-comp`): `lever.py` runs
+  `myo_lsl_publisher.py`, `jackal-bridge --serve-site --open`, then `myo_gestures.py record` and
+  `myo_gestures.py drive --mode lever`. Run those yourself to pass them.
 
-Every drive writes `data/<you>-lever/drives/drive_*.csv` (one row per command, 20 per second). Read those to find out
-why something felt wrong.
+Code: `lever.py`, `myo_gestures.py` (record, drive), `armdrive.py` (arm angles,
+lever, brake, assist, lag), `gestures.py` (EMG features, recordings). Tests: `pytest examples/tests`.
 
-## Other modes
-
-- `--mode arm`: squeeze to go (harder = faster) instead of arm height. Needs `calibrate` takes.
-- `--mode gestures`: five EMG gestures classified by LDA. The baseline we started from: on AJ's arm it
-  misread fists held with the forearm rolled, which is why the lever mode steers with the IMU.
+We started from five EMG gestures classified by LDA. On AJ's arm it misread fists held with the forearm
+rolled, which is why the lever steers with the motion sensor instead.
 
 ## What we measured (AJ, 2026-10-22)
 
