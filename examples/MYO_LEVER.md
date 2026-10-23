@@ -1,4 +1,4 @@
-<!-- budget: 650 words -->
+<!-- budget: 760 words -->
 # Myo lever controller
 
 Drive the Jackal with your forearm. The Myo armband's motion sensor reads your arm's angle, and a firm
@@ -37,6 +37,15 @@ or when the drive says the band has moved. Using a different armband: add `--add
 | Rolled left or right | Turns |
 | Tipped down | Reverses |
 | Firm fist, held 0.4 s | Brakes |
+
+## If something goes wrong
+
+| What you see | Fix |
+|---|---|
+| `CondaError: Run 'conda init'` | Run `conda init zsh` once (or `conda init bash`), then open a new terminal |
+| `No Myo found`, or stuck connecting | Plug the Myo into USB for a few seconds to wake it, unplug it, and move it. Close Myo Connect |
+| The Myo shows up only while plugged in | The battery is probably flat: charge it for 15 minutes |
+| Still not found | Another laptop may be connected to it: stop `lever.py` there. Then run `python examples/myo_check.py` |
 
 ## Tuning
 
