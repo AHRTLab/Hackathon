@@ -30,3 +30,6 @@ myo_calibration.json
 
 # PowerPoint / Keynote lock files
 ~$*
+
+# Personal Myo recordings: calibrations and drive logs (the shared dataset is a release asset)
+data/
