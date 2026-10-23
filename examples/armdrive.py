@@ -37,9 +37,10 @@ LEVER_GRIP_ON = 0.15  # lever --grip: a light grip enables driving (relax = stop
 LEVER_GRIP_OFF = 0.08
 BRAKE_ON = 0.6       # no-grip lever: fist brake at this fraction of the rest → fist range. Holding and
 BRAKE_OFF = 0.45     # rolling the arm alone reads up to ~0.35 of it (AJ, L2 lever run, 2026-10-22)
-BRAKE_FRAMES = 3     # ... held this many commands (150 ms) so a twitch can't brake
+BRAKE_FRAMES = 8     # ... held this many commands (400 ms): AJ's unconscious mid-turn grips lasted
+                     # up to 350 ms (L2 lever run 2026-10-22 20:41); deliberate fists all caught at 0.4 s
 BRAKE_P = 0.9        # with brake takes and other active takes: the fist must also LOOK like your fist
-BRAKE_MIN = 0.35     # ... and reach this fraction of the range (turning muscles are a different pattern)
+BRAKE_MIN = 0.5      # ... and reach this fraction of the range (turning muscles are a different pattern)
 NOT_BRAKE = ("rest", "roll_left", "roll_right", "arm_up", "tip_down", "left", "right", "reverse")
 LEVER_STOP = 0.6      # ... arm raised past this fraction of arm_up: stopped
 LEVER_FULL = 0.15     # raised less than this fraction (about level): full speed

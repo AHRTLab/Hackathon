@@ -164,10 +164,10 @@ def test_lever_fist_brakes_and_leaving_the_pose_needs_a_re_arm():
     c, rest = A.ArmControl(toy_calibration(), lever=True), G.toy_rms()["rest"]
     lever_drive(c, "arm_up", rest)
     fist = G.toy_rms()["forward"]
-    assert lever_drive(c, "neutral", fist)[0] > 0                  # one frame of fist: a twitch, ignored
-    lever_drive(c, "neutral", fist)
+    for _ in range(A.BRAKE_FRAMES - 1):
+        assert lever_drive(c, "neutral", fist)[0] > 0              # a short grip: ignored
     v, w, line = lever_drive(c, "neutral", fist)
-    assert (v, w) == (0.0, 0.0) and "BRAKE" in line                # held 3 frames: brake
+    assert (v, w) == (0.0, 0.0) and "BRAKE" in line                # held BRAKE_FRAMES: brake
     assert lever_drive(c, "neutral", rest)[0] > 0                  # let go of the fist: drives again
     assert lever_drive(c, tipped(89), rest)[2].startswith("arm out")   # arm dropped straight down
     v, _, line = lever_drive(c, "neutral", rest)
@@ -240,7 +240,7 @@ def test_brake_pattern_ignores_strong_non_fist_activity():
     for _ in range(5):
         v, _, line = lever_drive(c, "neutral", turning)
     assert v > 0 and "BRAKE" not in line
-    for _ in range(4):
+    for _ in range(A.BRAKE_FRAMES + 1):
         v, _, line = lever_drive(c, "neutral", rms["forward"])
     assert v == 0 and "BRAKE" in line
 
