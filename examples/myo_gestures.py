@@ -11,7 +11,8 @@
                         spread fingers to reverse. Needs takes of each, recorded in lsl-web-viewer.
   Both: a lidar assist slows before obstacles and nudges off walls (--no-assist to switch it off).
 
-1. Record.  python myo_gestures.py calibrate data/<team>       guided, Myo_EMG + Myo_IMU, ~30 s
+1. Record.  python myo_gestures.py calibrate data/<team>       guided, Myo_EMG + Myo_IMU, ~40 s
+            python myo_gestures.py record data/<team>-lever    lever dataset: 6 poses × 2, 3, 5 s
             or record takes in lsl-web-viewer, the label being the gesture or pose name
             ("forward-left" counts as forward: a fist held while rolled left).
 2. Check.   python myo_gestures.py report data/<team>
@@ -235,44 +236,63 @@ def cmd_fake(args: argparse.Namespace) -> None:
         print()
 
 
-CAL_STEPS = (  # (EMG label, IMU label, what to do)
-    ("rest", "neutral", "arm in your driving position, palm down, hand relaxed"),
-    ("forward", None, "same position: a firm fist, your full-speed squeeze"),
-    (None, "roll_left", "relax the hand; roll your forearm LEFT like a doorknob, as far as comfortable"),
-    (None, "roll_right", "now roll it RIGHT, as far as comfortable"),
-    (None, "tip_down", "palm down again; lower your forearm from the elbow, about 45°"),
-    (None, "arm_up", "raise your forearm from the elbow to where STOP feels natural (lever mode)"),
+CAL_STEPS = (  # (name, EMG label, IMU label, what to do); both streams are saved for every take
+    ("rest", "rest", "neutral", "arm in your driving position, palm down, hand relaxed"),
+    ("fist", "forward", "forward", "same position: a firm fist, your full-speed squeeze"),
+    ("roll left", "roll_left", "roll_left", "relax the hand; roll your forearm LEFT like a doorknob, as far as comfortable"),
+    ("roll right", "roll_right", "roll_right", "now roll it RIGHT, as far as comfortable"),
+    ("tip down", "tip_down", "tip_down", "palm down again; lower your forearm from the elbow, about 45°"),
+    ("arm up", "arm_up", "arm_up", "raise your forearm from the elbow to where STOP feels natural (lever mode)"),
+)
+LEVER_STEPS = (
+    ("GO", "rest", "neutral", "arm FORWARD in your driving position, hand relaxed"),
+    ("STOP", "arm_up", "arm_up", "RAISE your forearm from the elbow, hand relaxed"),
+    ("LEFT", "roll_left", "roll_left", "arm forward, ROLL LEFT as far as you'd steer"),
+    ("RIGHT", "roll_right", "roll_right", "arm forward, ROLL RIGHT as far as you'd steer"),
+    ("REVERSE", "tip_down", "tip_down", "LOWER your forearm from the elbow, about 45°"),
+    ("BRAKE", "forward", "brake", "arm forward, a FIRM FIST"),
 )
 
 
-def cmd_calibrate(args: argparse.Namespace) -> None:
+def record_steps(args: argparse.Namespace, steps: tuple, durations: list[float]) -> None:
+    """Guided takes: every step once per duration (round by round, so fatigue spreads evenly)."""
     emg, imu = Inlet(args.stream), Inlet(args.imu_stream)
     out, team = Path(args.folder), Path(args.folder).name
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    print(f"\n{len(CAL_STEPS)} steps: get into position during the countdown, then hold still.\n")
-    for i, (emg_label, imu_label, how) in enumerate(CAL_STEPS, 1):
-        print(f"  {i}/{len(CAL_STEPS)}  {how}")
-        for c in range(args.ready, 0, -1):
-            print(f"\r        {c} …", end="", flush=True)
-            time.sleep(1)
-        emg.pull(), imu.pull()
-        print("\r        hold  ", end="", flush=True)
-        xs, ms = [], []
-        t_end = time.monotonic() + args.hold
-        while time.monotonic() < t_end:
-            xs.append(emg.pull())
-            ms.append(imu.pull())
-            time.sleep(0.02)
-        x = np.concatenate([a for a in xs if a.size]) if any(a.size for a in xs) else np.zeros((0, 8))
-        m = np.concatenate([a for a in ms if a.size]) if any(a.size for a in ms) else np.zeros((0, 10))
-        if emg_label:
-            G.write_take(out / f"{emg_label}_{stamp}_{i}_Myo_EMG.csv", G.Take(emg_label, x, emg.srate or 200.0),
-                         team, stamp)
-        if imu_label:
-            G.write_take(out / f"{imu_label}_{stamp}_{i}_Myo_IMU.csv", G.Take(imu_label, m, imu.srate or IMU_HZ),
+    total = len(steps) * len(durations)
+    print(f"\n{total} takes: get into position during the countdown, then hold still until ✓.\n")
+    n = 0
+    for dur in durations:
+        for name, emg_label, imu_label, how in steps:
+            n += 1
+            print(f"  {n}/{total}  {name} ({dur:g} s): {how}")
+            for c in range(args.ready, 0, -1):
+                print(f"\r        {c} …", end="", flush=True)
+                time.sleep(1)
+            emg.pull(), imu.pull()
+            print("\r        hold  ", end="", flush=True)
+            xs, ms = [], []
+            t_end = time.monotonic() + dur
+            while time.monotonic() < t_end:
+                xs.append(emg.pull())
+                ms.append(imu.pull())
+                time.sleep(0.02)
+            x = np.concatenate([a for a in xs if a.size]) if any(a.size for a in xs) else np.zeros((0, 8))
+            m = np.concatenate([a for a in ms if a.size]) if any(a.size for a in ms) else np.zeros((0, 10))
+            tag = f"{stamp}_{dur:g}s_{n}"
+            G.write_take(out / f"{emg_label}_{tag}_Myo_EMG.csv", G.Take(emg_label, x, emg.srate or 200.0), team, stamp)
+            G.write_take(out / f"{imu_label}_{tag}_Myo_IMU.csv", G.Take(imu_label, m, imu.srate or IMU_HZ),
                          team, stamp, "Myo_IMU", A.IMU_CHANNELS)
-        print(f"\r        ✓ {len(x)} EMG, {len(m)} IMU samples")
+            print(f"\r        ✓ {len(x)} EMG, {len(m)} IMU samples")
     report_calibration(args.folder)
+
+
+def cmd_calibrate(args: argparse.Namespace) -> None:
+    record_steps(args, CAL_STEPS, [args.hold])
+
+
+def cmd_record(args: argparse.Namespace) -> None:
+    record_steps(args, LEVER_STEPS, [float(d) for d in args.durations.split(",")])
 
 
 def report_calibration(folder: str) -> A.Calibration:
@@ -522,7 +542,14 @@ def main() -> None:
     p.add_argument("b")
     p.set_defaults(fn=cmd_compare)
 
-    p = sub.add_parser("calibrate", help="guided ~25 s recording of everything --mode arm needs")
+    p = sub.add_parser("record", help="guided lever-mode dataset: go, stop, left, right, reverse, brake × durations")
+    p.add_argument("folder", help="where to write the takes, e.g. data/<team>-lever")
+    p.add_argument("--durations", default="2,3,5", help="seconds per take, one round each (default %(default)s)")
+    p.add_argument("--ready", type=int, default=3, help="countdown before each take (s)")
+    streams(p)
+    p.set_defaults(fn=cmd_record)
+
+    p = sub.add_parser("calibrate", help="guided ~40 s recording of everything --mode arm needs")
     p.add_argument("folder", help="where to write the takes, e.g. data/<team>")
     p.add_argument("--ready", type=int, default=3, help="countdown before each step (s)")
     p.add_argument("--hold", type=float, default=3.0, help="recording per step (s)")
