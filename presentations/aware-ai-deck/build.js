@@ -294,8 +294,8 @@ const CH = ["1 · How you drive", "2 · What the signals told us", "3 · Calibra
   const s = pres.addSlide({ masterName: "DARK" });
   s.addText("Thank you", { placeholder: "title" });
   text(s, "AJ · [teammate] · [teammate]", { x: M, y: 2.85, w: 9, h: 0.4, fontSize: 20, color: HEX.nightMuted });
-  text(s, "Code and dataset: github.com/ajbarea/Hackathon (branch team-gestures)", { x: M, y: 3.35, w: 9, h: 0.4, fontSize: 18,
-    color: HEX.nightMuted, hyperlink: { url: "https://github.com/ajbarea/Hackathon/tree/team-gestures" } });
+  text(s, "Code and dataset: github.com/ajbarea/Hackathon", { x: M, y: 3.35, w: 9, h: 0.4, fontSize: 18,
+    color: HEX.nightMuted, hyperlink: { url: "https://github.com/ajbarea/Hackathon" } });
   s.addNotes("That's our controller: one forearm, no squeezing, every course finished. The code and the dataset are " +
     "public on GitHub. Thank you, and we're happy to take questions.");
 }

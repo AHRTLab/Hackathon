@@ -1,5 +1,5 @@
 <!-- budget: 550 words -->
-# Myo lever controller (team-gestures)
+# Myo lever controller
 
 Drive the Jackal with your forearm: arm forward to go (lower = faster), arm up to stop, roll your forearm
 to steer, tip it down to reverse. A firm fist held for 0.4 s brakes. Relaxing your hand never moves the
