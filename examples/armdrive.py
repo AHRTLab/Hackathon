@@ -130,6 +130,10 @@ def calibrate(emg_takes: list[G.Take], poses: dict[str, list[np.ndarray]]) -> Ca
     cal.tip_down = abs(tip)
     if poses.get("arm_up"):
         cal.tip_up = cal.angles(unit(np.mean([mean_gravity(x) for x in poses["arm_up"]], axis=0)))[1]
+    numbers = [cal.rest_level, cal.fist_level, cal.roll_left, cal.roll_right, cal.tip_down, cal.tip_up,
+               *cal.neutral, *cal.axis]
+    if not all(math.isfinite(v) for v in numbers):
+        raise ValueError("calibration came out invalid (NaN): a take is empty or broken; record again")
     return cal
 
 
@@ -161,6 +165,15 @@ class ArmControl:
         self.g: np.ndarray | None = None
         self.last: dict = {}
 
+    def reset(self) -> None:
+        """Forget the pose and any squeeze after a signal gap: a no-grip lever must be raised again before
+        it drives, and nothing measured before the gap carries into the first ticks after it."""
+        self.g = None
+        self.squeezing = 0
+        self.braking = self.engaged = self.reverse = False
+        if self.lever and not self.grip:
+            self.armed = False
+
     def feed_imu(self, samples: np.ndarray, srate: float = 50.0) -> None:
         alpha = 1 - math.exp(-1 / (GRAVITY_TAU_S * srate))
         for a in np.atleast_2d(samples)[:, 4:7]:
@@ -191,14 +204,19 @@ class ArmControl:
             self.squeezing = (self.squeezing + 1) if fist else 0
             self.braking = self.squeezing >= (1 if self.braking else BRAKE_FRAMES)
             brake, self.engaged = self.braking, not self.braking
-        roll, tip = c.angles(self.g) if self.g is not None else (0.0, 0.0)
+        if self.g is None:                             # no orientation yet: never guess "level"
+            self.last = {"level": level, "engaged": False, "armed": self.armed}
+            return 0.0, 0.0, f"waiting for IMU  level {level:5.1f}"
+        roll, tip = c.angles(self.g)
         self.reverse = tip > c.tip_down * (REVERSE_OFF if self.reverse else REVERSE_ON)
         if self.lever:
             stop, full = LEVER_STOP * c.tip_up, LEVER_FULL * c.tip_up
             throttle = float(np.clip((tip - stop) / (full - stop), 0, 1))
             raised = tip < stop                       # roll means nothing near vertical: don't judge it
+            # no "raised too far" limit: past vertical the tilt folds back (110° up reads as 70°), which is
+            # still the stop zone, so a raised arm can only ever stop the robot
             outside = (not raised and (roll > ENVELOPE * c.roll_left or roll < ENVELOPE * c.roll_right)
-                       or tip > ENVELOPE * c.tip_down or tip < ENVELOPE * c.tip_up)
+                       or tip > ENVELOPE * c.tip_down)
             if raised:
                 self.armed = True
         else:
@@ -305,7 +323,7 @@ class LagModel:
         self.sent.append((t, v, w))
 
     def observe(self, now: float, echo_t: float | None) -> None:
-        if echo_t:
+        if echo_t and self.sent and echo_t >= self.sent[0][0]:    # not a previous controller's command
             self.samples.append(max(0.0, now - echo_t))
 
     @property

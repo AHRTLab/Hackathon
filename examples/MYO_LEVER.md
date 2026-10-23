@@ -1,4 +1,4 @@
-<!-- budget: 450 words -->
+<!-- budget: 550 words -->
 # Myo lever controller (team-gestures)
 
 Drive the Jackal with your forearm: arm forward to go (lower = faster), arm up to stop, roll your forearm
@@ -33,7 +33,7 @@ into a new folder. Recalibrate every time the band comes off.
 - Top speed and turn rate: `--vmax`, `--wmax`.
 - Switch off a helper: `--no-assist` (lidar), `--no-lag-comp`.
 
-Every drive writes `data/<you>-lever/drives/drive_*.csv` (20 rows per second). Read those to find out
+Every drive writes `data/<you>-lever/drives/drive_*.csv` (one row per command, 20 per second). Read those to find out
 why something felt wrong.
 
 ## Other modes
@@ -44,17 +44,21 @@ why something felt wrong.
 
 ## What we measured (AJ, 2026-10-22)
 
-Official sim scores, lever mode, all completed with 0 missed gates and 0 % deadman:
+Recompute everything below from the dataset: `python examples/team_results.py <dataset>/results`.
 
-| Course | Runs | Median score | Collisions |
-|---|---|---|---|
-| L1 Gates | 4 | 20.73 s | 0 |
-| L2 Slalom | 6 | 26.62 s | 0 |
-| L3 Corridor + Dock | 3 | 16.24 s | 0 |
-| L1, 300 ms lag + 10 % drop, blind test | 16 | 21.41 s (lag comp on) vs 22.04 s (off) | 0 vs 2 |
+Official sim scores, lever mode; all 51 recorded runs completed with 0 missed gates and 0 % deadman:
 
-In the blind test, workload (NASA-RTLX) was lower with lag compensation (41 vs 51, permutation p = 0.04);
-the score and smoothness gains were not significant (p about 0.15).
+| Course | Runs | Median score | Range | Collisions |
+|---|---|---|---|---|
+| L1 Gates | 4 | 20.73 s | 20.70 to 22.46 s | 0 |
+| L2 Slalom | 6 | 26.62 s | 25.74 to 27.54 s | 0 |
+| L3 Corridor + Dock | 4 | 16.26 s | 16.20 to 17.44 s | 0 |
+
+Under the judges' degraded link (300 ms lag, 10 % drop) we ran a blind test of lag compensation: 8
+sessions of 2 runs each, the condition hidden from the driver. Compared session by session (exact
+two-sided permutation test), lag compensation's medians were better on score (21.66 vs 22.51 s),
+smoothness and workload (43 vs 50 NASA-RTLX), with 0 collisions against 2, but none of the differences
+is significant (p = 0.26 to 0.63). We keep it on because it did no measurable harm; we can't claim it helps.
 
 Dataset: the `AJ-myo-lever-dataset.zip` release asset on this fork (two sessions, results, drive logs,
 and a README with loading code and how to split it).

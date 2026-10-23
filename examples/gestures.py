@@ -27,6 +27,7 @@ KEYS = {"w": "forward", "a": "left", "d": "right", "s": "reverse", " ": "rest"}
 
 WINDOW_S = 0.2       # feature window
 STEP_S = 0.05        # window hop when building training data (one decision per 20 Hz command)
+MIN_TAKE_ROWS = 10   # a take shorter than this is a stalled stream, not a pose
 TRIM_S = 0.5         # cut from each end of a take: the click of Record, moving into the gesture
 CONFIDENCE = 0.8     # below this the classifier is "unsure" and the robot stops
 VOTES = 5            # majority vote over the last VOTES decisions (250 ms at 20 Hz)
@@ -95,6 +96,9 @@ def load_recordings(folder: str | Path, stream: str, labels: tuple[str, ...], ch
             continue
         if data.ndim != 2 or data.shape[1] != channels + 1:
             notes.append(f"skipped {path.name}: expected timestamp + {channels} channels")
+            continue
+        if len(data) < MIN_TAKE_ROWS:
+            notes.append(f"skipped {path.name}: only {len(data)} samples")
             continue
         found.append((label, data[:, 1:].astype(float), float(meta.get("sample_rate", 0.0)), str(path)))
     return found, notes

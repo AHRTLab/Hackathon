@@ -368,3 +368,105 @@ def test_steering_tuning_ignores_straight_line_wobble(tmp_path):
     log.write_text("t,roll,outside,v\n" + "".join(f"{i},{r},False,0.5\n" for i, r in enumerate(rolls)))
     tuned = M.steering_from_logs([log])
     assert tuned["full_left"] > 40 and tuned["full_right"] > 25      # from the turns, not the wobble
+
+
+# ------------------------------------------------------------------- review round 2: guards locked at their boundaries
+def armed_lever(**kw):
+    c = A.ArmControl(toy_calibration(), lever=True, **kw)
+    lever_drive(c, "arm_up", G.toy_rms()["rest"])
+    return c
+
+
+@pytest.mark.parametrize("frames,brakes", [(A.BRAKE_FRAMES - 1, False), (A.BRAKE_FRAMES, True)])
+def test_brake_needs_exactly_the_full_hold(frames, brakes):
+    c = armed_lever()
+    for _ in range(frames):
+        _, _, line = lever_drive(c, "neutral", G.toy_rms()["forward"])
+    assert ("BRAKE" in line) is brakes
+
+
+def test_a_fist_pattern_below_the_minimum_strength_never_brakes():
+    rms = G.toy_rms()
+    cal = toy_calibration()
+    weak_frac = A.BRAKE_MIN * 0.8                       # fist-shaped, but under BRAKE_MIN of the range
+    weak = rms["rest"] + weak_frac * (rms["forward"] - rms["rest"])
+    X, y = [], []
+    for label, r in (("forward", rms["forward"]), ("forward", weak), ("rest", rms["rest"]),
+                     ("rest", np.roll(rms["forward"], 4))):
+        for w in G.windows(G.synth_emg(r, 4.0, 200.0, RNG), 200.0):
+            X.append(G.features(w))
+            y.append(label)
+    c = A.ArmControl(cal, lever=True, brake_model=G.LDA().fit(np.array(X), y))
+    lever_drive(c, "arm_up", rms["rest"])
+    for _ in range(A.BRAKE_FRAMES + 3):
+        v, _, line = lever_drive(c, "neutral", weak)
+    assert "BRAKE" not in line and v > 0
+
+
+@pytest.mark.parametrize("margin,arms", [(+5, False), (-5, True)])
+def test_arming_happens_only_past_the_stop_angle(margin, arms):
+    c = A.ArmControl(toy_calibration(), lever=True)
+    stop = A.LEVER_STOP * c.cal.tip_up                 # negative: raised
+    lever_drive(c, tipped(stop + margin), G.toy_rms()["rest"])
+    assert c.armed is arms
+
+
+@pytest.mark.parametrize("deg", [-70, -90, -110, -140])
+def test_an_arm_raised_up_to_and_past_vertical_only_ever_stops(deg):
+    c = armed_lever()
+    assert lever_drive(c, tipped(deg), G.toy_rms()["rest"])[:2] == (0.0, 0.0)
+
+
+def test_arm_dropped_past_the_envelope_stops_and_disarms():
+    c = armed_lever()
+    v, w, line = lever_drive(c, tipped(A.ENVELOPE * c.cal.tip_down + 5), G.toy_rms()["rest"])
+    assert (v, w) == (0.0, 0.0) and line.startswith("arm out") and not c.armed
+
+
+def test_no_imu_yet_means_stop_in_every_mode():
+    for c in (A.ArmControl(toy_calibration(), lever=True, grip=True), A.ArmControl(toy_calibration())):
+        v, w, line = c.step(G.synth_emg(G.toy_rms()["forward"], 0.2, 200.0, RNG))
+        assert (v, w) == (0.0, 0.0) and "waiting for IMU" in line
+
+
+def test_after_a_signal_gap_the_lever_must_be_raised_again():
+    c = armed_lever()
+    assert lever_drive(c, "neutral", G.toy_rms()["rest"])[0] > 0
+    c.reset()                                           # what the drive loop does when a stream goes stale
+    v, _, line = lever_drive(c, "neutral", G.toy_rms()["rest"])
+    assert v == 0 and "raise" in line
+    lever_drive(c, "arm_up", G.toy_rms()["rest"])
+    assert lever_drive(c, "neutral", G.toy_rms()["rest"])[0] > 0
+
+
+def test_empty_or_tiny_takes_are_skipped_not_turned_into_nan(tmp_path):
+    rng = np.random.default_rng(3)
+    for label in ("rest", "forward"):
+        G.write_take(tmp_path / f"{label}.csv", G.Take(label, G.synth_emg(G.toy_rms()[label], 2.0, 200.0, rng), 200.0),
+                     "t", "x")
+    for p, g in A.toy_gravity().items():
+        G.write_take(tmp_path / f"{p}.csv", G.Take(p, A.synth_imu(g, 2.0, 50.0, rng), 50.0), "t", "x",
+                     "Myo_IMU", A.IMU_CHANNELS)
+    for rows in (0, 1):
+        G.write_take(tmp_path / f"neutral_bad{rows}.csv", G.Take("neutral", np.zeros((rows, 10)), 50.0), "t", "x",
+                     "Myo_IMU", A.IMU_CHANNELS)
+    cal, notes = A.load_calibration(tmp_path)
+    assert all(map(math.isfinite, [cal.roll_left, cal.roll_right, cal.tip_down, cal.tip_up]))
+    assert sum("only" in n for n in notes) == 2
+
+
+def test_a_nan_calibration_is_refused():
+    takes = [G.Take(g, G.synth_emg(G.toy_rms()[g], 3.0, 200.0, RNG), 200.0) for g in ("rest", "forward")]
+    poses = {p: [A.synth_imu(g, 2.0, 50.0, RNG)] for p, g in A.toy_gravity().items()}
+    poses["neutral"] = [np.full((20, 10), np.nan)]
+    with pytest.raises(ValueError, match="NaN"):
+        A.calibrate(takes, poses)
+
+
+def test_lag_ignores_a_previous_controllers_echo():
+    lag = A.LagModel()
+    lag.sent_cmd(100.0, 0.0, 0.0)
+    lag.observe(100.05, 10.0)                          # echo of a command sent long before we started
+    assert lag.latency == 0.0
+    lag.observe(100.35, 100.0)
+    assert lag.latency == pytest.approx(0.35)

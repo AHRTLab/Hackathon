@@ -148,7 +148,7 @@ class Inlet:
             found = pylsl.resolve_byprop("name", name, timeout=3.0)
         self.name, self.srate = name, found[0].nominal_srate()
         self.inlet = pylsl.StreamInlet(found[0], max_buflen=2)
-        self.last = time.monotonic()
+        self.last = float("-inf")                     # stale until the first sample arrives
         print(f"✓ {name} found")
 
     def pull(self) -> np.ndarray:
@@ -285,6 +285,9 @@ def record_steps(args: argparse.Namespace, steps: tuple, durations: list[float])
             G.write_take(out / f"{emg_label}_{tag}_Myo_EMG.csv", G.Take(emg_label, x, emg.srate or 200.0), team, stamp)
             G.write_take(out / f"{imu_label}_{tag}_Myo_IMU.csv", G.Take(imu_label, m, imu.srate or IMU_HZ),
                          team, stamp, "Myo_IMU", A.IMU_CHANNELS)
+            if len(x) < G.MIN_TAKE_ROWS or len(m) < G.MIN_TAKE_ROWS:
+                sys.exit(f"\r        ✗ only {len(x)} EMG, {len(m)} IMU samples: a stream stalled. Check the Myo "
+                         f"(battery, sync), then record again into a new folder")
             print(f"\r        ✓ {len(x)} EMG, {len(m)} IMU samples")
     report_calibration(args.folder)
 
@@ -319,7 +322,11 @@ class GestureMode:
         if len({t.label for t in takes}) < 2:
             sys.exit("record at least rest and one other gesture first")
         self.model, self.decider = G.train(takes), G.Decider()
+        self.last: dict = {}
         print("gestures: trained on " + ", ".join(self.model.lda.classes))
+
+    def reset(self) -> None:
+        self.decider = G.Decider()
 
     def step(self, x: np.ndarray) -> tuple[float, float, str]:
         p = self.model.lda.proba(G.features(x))[0]
@@ -378,6 +385,9 @@ class ArmMode:
               f"full turn {self.control.full[1] or A.STEER_FULL * cal.roll_left:+.0f}° / "
               f"{-(self.control.full[-1] or -A.STEER_FULL * cal.roll_right):+.0f}° from here")
 
+    def reset(self) -> None:
+        self.control.reset()
+
     def feed_imu(self, rows: np.ndarray, srate: float) -> None:
         if rows.size:
             self.control.feed_imu(rows, srate)
@@ -390,6 +400,10 @@ class StateBox:
     """The latest state message. The reader thread swaps in a whole new dict, never edits one in place,
     so the control loop always sees a complete message."""
     latest: dict = {}
+    at = float("-inf")                                # monotonic time of the last message
+
+    def fresh(self, max_age: float = 1.0) -> dict:
+        return self.latest if time.monotonic() - self.at < max_age else {}
 
 
 def follow_state(base: str, lag: "A.LagModel | None" = None) -> StateBox:
@@ -409,7 +423,7 @@ def follow_state(base: str, lag: "A.LagModel | None" = None) -> StateBox:
                         if m.get("type") == "state":
                             if lag is not None:
                                 lag.observe(time.time(), m.get("cmd_echo_t"))
-                            box.latest = m
+                            box.latest, box.at = m, time.monotonic()
             except Exception:
                 time.sleep(1.0)
 
@@ -550,10 +564,11 @@ def cmd_drive(args: argparse.Namespace) -> None:
             lag.sent_cmd(t, v, w)
 
     t_end = time.monotonic() + args.seconds if args.seconds else None
+    next_tick = time.monotonic()
     try:
         while t_end is None or time.monotonic() < t_end:
             t0 = time.monotonic()
-            state = box.latest if box is not None else {}   # one consistent snapshot per tick
+            state = box.fresh() if box is not None else {}   # one consistent, recent snapshot per tick
             window.extend(emg.pull())
             if imu is not None:
                 mode.feed_imu(imu.pull(), imu.srate or IMU_HZ)
@@ -561,6 +576,8 @@ def cmd_drive(args: argparse.Namespace) -> None:
                 v, w, line = 0.0, 0.0, "waiting for EMG"
             elif emg.stale() or (imu is not None and imu.stale()):
                 v, w, line = 0.0, 0.0, "signal lost: stopped"
+                mode.reset()
+                window.clear()
             else:
                 v, w, line = mode.step(np.asarray(window, dtype=float))
                 if args.lag_comp:
@@ -579,7 +596,10 @@ def cmd_drive(args: argparse.Namespace) -> None:
                               v, w, state)
             send(v, w)
             print(f"\r  {line:<96s}", end="", flush=True)
-            time.sleep(max(0.0, 1 / SEND_HZ - (time.monotonic() - t0)))
+            next_tick += 1 / SEND_HZ                     # a fixed schedule, so the loop really runs at SEND_HZ
+            if next_tick < time.monotonic() - 1 / SEND_HZ:
+                next_tick = time.monotonic()               # fell behind (a slow tick): don't burst to catch up
+            time.sleep(max(0.0, next_tick - time.monotonic()))
     except KeyboardInterrupt:
         pass
     finally:
