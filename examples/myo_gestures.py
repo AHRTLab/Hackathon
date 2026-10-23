@@ -261,11 +261,38 @@ LEVER_STEPS = (
 )
 
 
+def set_aside_previous(folder: Path, stamp: str) -> list[Path]:
+    """Move an earlier calibration out of `folder` into a sibling `<folder>-previous-<stamp>`, so the new
+    takes stand alone. The loaders read every CSV under a folder (subfolders too), which is why it must be
+    a sibling. Takes, steering.json and the completion marker move; drive logs stay."""
+    if not folder.is_dir():
+        return []
+    old = [p for p in folder.iterdir() if p.is_file() and (p.suffix == ".csv" and "# label:" in p.read_text(errors="ignore")[:400]
+                                                           or p.name in ("steering.json", COMPLETE))]
+    if not old:
+        return []
+    dest = folder.parent / f"{folder.name}-previous-{stamp}"
+    dest.mkdir(parents=True, exist_ok=True)
+    moved = []
+    for p in old:
+        p.rename(dest / p.name)
+        moved.append(dest / p.name)
+    return moved
+
+
+COMPLETE = "calibration-complete"
+
+
 def record_steps(args: argparse.Namespace, steps: tuple, durations: list[float]) -> None:
     """Guided takes: every step once per duration (round by round, so fatigue spreads evenly)."""
     emg, imu = Inlet(args.stream), Inlet(args.imu_stream)
     out, team = Path(args.folder), Path(args.folder).name
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    if not getattr(args, "keep", False):
+        moved = set_aside_previous(out, stamp)
+        if moved:
+            print(f"  previous calibration ({len(moved)} files) moved to {moved[0].parent}: a new wearing of the "
+                  f"band must not mix with the old one (--keep to add takes to it instead)")
     total = len(steps) * len(durations)
     print(f"\n{total} takes: get into position during the countdown, then hold still until ✓.\n")
     n = 0
@@ -347,13 +374,17 @@ class ArmMode:
     needs_imu = True
 
     def __init__(self, folder: str, v_max: float, w_max: float, lever: bool = False, expo: float = A.EXPO,
-                 grip: bool = False, full_left: float = 0.0, full_right: float = 0.0):
+                 grip: bool = False, full_left: float = 0.0, full_right: float = 0.0,
+                 brake_model: str | None = None):
         try:
-            brake = A.train_brake(folder) if lever and not grip else None
+            brake = None
+            if lever and not grip:
+                brake = A.load_brake(brake_model, folder) if brake_model else A.train_brake(folder)
             self.control = A.ArmControl(report_calibration(folder), v_max, w_max, lever, expo, grip,
                                         full_left, full_right, brake)
             if lever and not grip:
-                print("  brake:    " + ("fist pattern (trained on your brake vs other takes)" if brake
+                print("  brake:    " + (f"pooled fist pattern ({brake_model}), offset by your rest" if brake_model
+                                        else "fist pattern (trained on your brake vs other takes)" if brake
                                         else "level only: record other poses (`record`) for the pattern check"))
         except ValueError as e:
             sys.exit(str(e))
@@ -539,7 +570,8 @@ def cmd_drive(args: argparse.Namespace) -> None:
         print(f"steering: full turn at {args.full_left:.0f}° left / {args.full_right:.0f}° right ({tuned.name})")
     mode = (GestureMode(args.folder) if args.mode == "gestures"
             else ArmMode(args.folder, args.vmax, args.wmax, lever=args.mode == "lever", expo=args.expo,
-                         grip=args.grip, full_left=args.full_left, full_right=args.full_right))
+                         grip=args.grip, full_left=args.full_left, full_right=args.full_right,
+                         brake_model=args.brake_model))
     emg = Inlet(args.stream)
     imu = Inlet(args.imu_stream) if mode.needs_imu else None
     window: deque = deque(maxlen=round(G.WINDOW_S * (emg.srate or 200.0)))
@@ -565,7 +597,11 @@ def cmd_drive(args: argparse.Namespace) -> None:
     def send(v: float, w: float) -> None:
         if bridge is not None:
             t = time.time()
-            bridge.send(json.dumps({"type": "cmd", "v": v, "w": w, "source": SOURCE, "t": t}))
+            msg = {"type": "cmd", "v": v, "w": w, "source": SOURCE, "t": t}
+            ov = A.overlay() if not args.no_assist else None
+            if ov:
+                msg["assist"] = ov                        # the sim page draws it in its minimap
+            bridge.send(json.dumps(msg))
             lag.sent_cmd(t, v, w)
 
     t_end = time.monotonic() + args.seconds if args.seconds else None
@@ -611,7 +647,17 @@ def cmd_drive(args: argparse.Namespace) -> None:
         send(0.0, 0.0)
         if bridge is not None:
             bridge.close()
-        print("\nstopped" + (f"; log: {log.close()}" if log is not None else ""))
+        log_path = log.close() if log is not None else None
+        print("\nstopped" + (f"; log: {log_path}" if log_path else ""))
+        if args.learn and log_path and args.brake_model and not args.dry_run:
+            import train_pooled
+            try:
+                fists, rests, total = train_pooled.update_from_drive(args.brake_model, log_path, args.folder)
+                print(f"learned from this drive: +{fists} fist, +{rests} not-fist windows → "
+                      f"{args.brake_model} now {total} windows" if fists or rests else
+                      "learned nothing from this drive (no held brakes, no clear driving)")
+            except Exception as e:                           # learning must never spoil a finished drive
+                print(f"⚠ could not update {args.brake_model}: {e}")
 
 
 def main() -> None:
@@ -632,6 +678,7 @@ def main() -> None:
     p.set_defaults(fn=cmd_compare)
 
     p = sub.add_parser("record", help="guided lever-mode dataset: go, stop, left, right, reverse, brake × durations")
+    p.add_argument("--keep", action="store_true", help="add to takes already in the folder instead of setting them aside")
     p.add_argument("folder", help="where to write the takes, e.g. data/<team>-lever")
     p.add_argument("--durations", default="2,3,5", help="seconds per take, one round each (default %(default)s)")
     p.add_argument("--ready", type=int, default=3, help="countdown before each take (s)")
@@ -639,6 +686,7 @@ def main() -> None:
     p.set_defaults(fn=cmd_record)
 
     p = sub.add_parser("calibrate", help="guided ~40 s recording of everything --mode arm needs")
+    p.add_argument("--keep", action="store_true", help="add to takes already in the folder instead of setting them aside")
     p.add_argument("folder", help="where to write the takes, e.g. data/<team>")
     p.add_argument("--ready", type=int, default=3, help="countdown before each step (s)")
     p.add_argument("--hold", type=float, default=3.0, help="recording per step (s)")
@@ -672,6 +720,8 @@ def main() -> None:
     p.add_argument("--mode", choices=("arm", "lever", "gestures"), default="arm")
     p.add_argument("--dry-run", action="store_true", help="print decisions, don't send commands")
     p.add_argument("--no-assist", action="store_true", help="switch the lidar assist off")
+    p.add_argument("--brake-model", help="lever: a pooled fist detector from train_pooled.py --save (.npz) instead of one trained on your own takes")
+    p.add_argument("--learn", action="store_true", help="with --brake-model: after each drive, add its self-labelled windows to the model and refit it (continual learning)")
     p.add_argument("--no-gate", action="store_true", help="keep the lidar assist but switch off the gate lane keeping")
     p.add_argument("--no-recenter", action="store_true", help="arm mode: skip re-zeroing straight at start")
     p.add_argument("--no-lag-comp", dest="lag_comp", action="store_false",

@@ -163,7 +163,7 @@ def test_lever_up_stops_forward_goes_without_any_squeeze():
 def test_lever_fist_brakes_and_leaving_the_pose_needs_a_re_arm():
     c, rest = A.ArmControl(toy_calibration(), lever=True), G.toy_rms()["rest"]
     lever_drive(c, "arm_up", rest)
-    fist = G.toy_rms()["forward"]
+    fist = rest + 0.8 * (G.toy_rms()["forward"] - rest)            # a fist, not a hard one (see fist_at)
     for _ in range(A.BRAKE_FRAMES - 1):
         assert lever_drive(c, "neutral", fist)[0] > 0              # a short grip: ignored
     v, w, line = lever_drive(c, "neutral", fist)
@@ -377,11 +377,25 @@ def armed_lever(**kw):
     return c
 
 
+def fist_at(frac: float) -> np.ndarray:
+    """A fist-shaped RMS profile at `frac` of the rest → fist range (1.0 = the calibration fist)."""
+    rms = G.toy_rms()
+    return rms["rest"] + frac * (rms["forward"] - rms["rest"])
+
+
 @pytest.mark.parametrize("frames,brakes", [(A.BRAKE_FRAMES - 1, False), (A.BRAKE_FRAMES, True)])
 def test_brake_needs_exactly_the_full_hold(frames, brakes):
     c = armed_lever()
     for _ in range(frames):
-        _, _, line = lever_drive(c, "neutral", G.toy_rms()["forward"])
+        _, _, line = lever_drive(c, "neutral", fist_at(0.8))        # a fist, but not a hard one
+    assert ("BRAKE" in line) is brakes
+
+
+@pytest.mark.parametrize("frames,brakes", [(A.BRAKE_FAST_FRAMES - 1, False), (A.BRAKE_FAST_FRAMES, True)])
+def test_a_hard_fist_brakes_after_the_short_hold(frames, brakes):
+    c = armed_lever()
+    for _ in range(frames):
+        _, _, line = lever_drive(c, "neutral", fist_at(1.4))        # harder than the calibration fist
     assert ("BRAKE" in line) is brakes
 
 

@@ -23,6 +23,7 @@ export class BridgeClient {
   status: BridgeStatus | null = null;
   versionWarning: string | null = null;
   rxCmds = 0;
+  lastAssist: { overlay: import('../ui/minimap').AssistOverlay; at: number } | null = null;   // from a cmd's `assist` field
   dropsInvalid = 0;   // dropped by the browser's own validation (the bridge should have caught them)
   private lastCmdMs = -Infinity;
   private ws: WebSocket | null = null;
@@ -110,7 +111,11 @@ export class BridgeClient {
     if (!r.ok) { this.dropsInvalid++; return; }
     const now = performance.now();
     this.sim.deliver(r.msg, now);
-    if (r.msg.type === 'cmd') { this.lastCmdMs = now; this.rxCmds++; this.rateWindow.push(now); }
+    if (r.msg.type === 'cmd') {
+      this.lastCmdMs = now; this.rxCmds++; this.rateWindow.push(now);
+      const a = (o as { assist?: unknown }).assist;
+      this.lastAssist = a && typeof a === 'object' ? { overlay: a as import('../ui/minimap').AssistOverlay, at: now } : null;
+    }
   }
 
   private sendState(s: State): void {

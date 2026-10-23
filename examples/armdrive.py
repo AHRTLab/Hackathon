@@ -40,6 +40,9 @@ BRAKE_ON = 0.6       # no-grip lever: fist brake at this fraction of the rest �
 BRAKE_OFF = 0.45     # rolling the arm alone reads up to ~0.35 of it (AJ, L2 lever run, 2026-10-22)
 BRAKE_FRAMES = 8     # ... held this many commands (400 ms): AJ's unconscious mid-turn grips lasted
                      # up to 350 ms (L2 lever run 2026-10-22 20:41); deliberate fists all caught at 0.4 s
+BRAKE_HARD = 1.0     # a fist at least this fraction of the range (as hard as your calibration fist) is
+BRAKE_FAST_FRAMES = 3  # ... taken after this many commands (150 ms) instead of BRAKE_FRAMES. Replayed
+                     # over AJ's 55 min of drive logs: 34 → 49 brake episodes, 25 of them 250 ms sooner
 BRAKE_P = 0.9        # with brake takes and other active takes: the fist must also LOOK like your fist
 BRAKE_MIN = 0.5      # ... and reach this fraction of the range (turning muscles are a different pattern)
 NOT_BRAKE = ("rest", "roll_left", "roll_right", "arm_up", "tip_down", "left", "right", "reverse")
@@ -49,7 +52,7 @@ ENVELOPE = 1.5       # roll or tip beyond this × your calibrated range (or tipp
                      # tip_down) means the arm left the driving pose: stop
 V_MAX = 1.4          # m/s at a full squeeze / arm level (protocol limit 2.0; L3 caps it to 1.0 anyway)
 V_REVERSE = 0.4
-W_MAX = 1.6          # rad/s at full roll
+W_MAX = 2.2          # rad/s at full roll: scaled with V_MAX so a full roll keeps the same turning radius (~0.64 m)
 GRAVITY_TAU_S = 0.1  # smoothing of the accelerometer (arm movement adds non-gravity acceleration)
 
 ROBOT_HALF_LENGTH = 0.255  # chassis box in models/jackal/jackal.xml
@@ -169,7 +172,7 @@ class ArmControl:
         self.grip = grip or not lever          # lever without --grip: no squeeze needed; a fist brakes
         self.armed = not lever or grip         # no-grip lever drives only after the arm was raised once
         self.engaged = self.reverse = self.braking = False
-        self.squeezing = 0
+        self.squeezing = self.squeezing_hard = 0
         self.g: np.ndarray | None = None
         self.last: dict = {}
 
@@ -177,7 +180,7 @@ class ArmControl:
         """Forget the pose and any squeeze after a signal gap: a no-grip lever must be raised again before
         it drives, and nothing measured before the gap carries into the first ticks after it."""
         self.g = None
-        self.squeezing = 0
+        self.squeezing = self.squeezing_hard = 0
         self.braking = self.engaged = self.reverse = False
         if self.lever and not self.grip:
             self.armed = False
@@ -205,12 +208,15 @@ class ArmControl:
             brake = False
         else:                                          # no-grip lever: a firm fist is the brake
             if self.brake_model is not None:
-                p = float(self.brake_model.proba(feats)[0][self.brake_model.classes.index("forward")])
+                f = feats - getattr(self.brake_model, "offset", 0.0)   # pooled models: this arm's rest removed
+                p = float(self.brake_model.proba(f)[0][self.brake_model.classes.index("forward")])
                 fist = p >= BRAKE_P and frac > BRAKE_MIN
             else:
                 fist = frac > (BRAKE_OFF if self.braking else BRAKE_ON)
             self.squeezing = (self.squeezing + 1) if fist else 0
-            self.braking = self.squeezing >= (1 if self.braking else BRAKE_FRAMES)
+            self.squeezing_hard = (self.squeezing_hard + 1) if fist and frac > BRAKE_HARD else 0
+            self.braking = (self.squeezing >= (1 if self.braking else BRAKE_FRAMES)
+                            or self.squeezing_hard >= BRAKE_FAST_FRAMES)   # a hard fist: don't wait
             brake, self.engaged = self.braking, not self.braking
         if self.g is None:                             # no orientation yet: never guess "level"
             self.last = {"level": level, "engaged": False, "armed": self.armed}
@@ -251,6 +257,23 @@ class ArmControl:
             v = self.v_max * throttle
             w = self.w_max * self.steer(roll) if throttle > 0 else 0.0
         return v, w, f"{'R' if self.reverse else 'D'} go    {where}"
+
+
+def load_brake(path: str | Path, folder: str | Path) -> "G.LDA":
+    """A pooled fist detector saved by train_pooled.py (--save), trained on several people's takes with
+    each session's rest features subtracted. `folder` is this driver's calibration: their rest takes give
+    the offset, so the model sees this arm the way it saw the training arms."""
+    z = np.load(path, allow_pickle=False)
+    m = G.LDA()
+    m.classes, m.means, m.icov = [str(c) for c in z["classes"]], z["means"], z["icov"]
+    m.offset = np.zeros(m.means.shape[1])
+    if bool(z["rest_norm"]):
+        found, _ = G.load_recordings(folder, "Myo_EMG", ("rest",), 8)
+        feats = [G.features(w) for _, x, srate, _ in found for w in G.windows(x, srate or 200.0)]
+        if not feats:
+            raise ValueError(f"{path}: needs this driver's rest takes in {folder} for the offset")
+        m.offset = np.mean(feats, axis=0)
+    return m
 
 
 def train_brake(folder: str | Path) -> "G.LDA | None":
@@ -313,13 +336,32 @@ def assist(v: float, w: float, state: dict, ahead: tuple[float, float, float] = 
     if abs(nudge) > 0.05:
         note.append("nudge " + ("right" if nudge < 0 else "left"))
 
+    global last_gate
+    last_gate = None
     if gate:                                              # lane keeping through the next gate
         g = gate_assist(x_all, y_all, r_all, w_max)
+        last_gate = g
         if g is not None:
             w2 += g["w"]
             v2 = min(v2, g["v_cap"])
             note.append(f"gate {g['dist']:.1f} m " + ("→" if g["w"] < -0.02 else "←" if g["w"] > 0.02 else "·"))
     return v2, w2, ", ".join(note)
+
+
+last_gate: dict | None = None    # what assist() last saw (for the sim page's minimap, see overlay())
+
+
+def overlay() -> dict | None:
+    """The last gate assist as a small JSON-able dict (robot frame, metres) to ride on the next command,
+    so the sim page can draw it in its minimap. None when there was no assist."""
+    g = last_gate
+    if g is None:
+        return None
+    r2 = lambda p: [round(float(p[0]), 3), round(float(p[1]), 3)]
+    gate = g["gate"]
+    return {"posts": [r2(p) for p in gate["posts"]], "mid": r2(gate["mid"]), "normal": r2(gate["normal"]),
+            "aim": r2(g["aim"]), "w": round(float(g["w"]), 3), "v_cap": round(float(min(g["v_cap"], 9.9)), 2),
+            "cone_deg": GATE_CONE_DEG}
 
 
 # ------------------------------------------------------------------------------------ gate assist

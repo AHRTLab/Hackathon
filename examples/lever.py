@@ -7,7 +7,8 @@
 
 It starts the Myo publisher and the bridge + sim for you, keeps ben's calibration in data/ben-lever,
 and stops everything on q or Ctrl+C. Between drives: Enter drives again, r recalibrates (the band
-came off or moved), t tunes the turns from ben's drives so far.
+came off or moved), t tunes the turns from ben's drives so far, m retrains the shared fist (brake)
+detector from everyone's calibrations in data/ (used automatically once data/brake-pooled.npz exists).
 """
 from __future__ import annotations
 
@@ -25,6 +26,8 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 DATA = HERE.parent / "data"
 GESTURES = HERE / "myo_gestures.py"
+TRAIN = HERE / "train_pooled.py"
+BRAKE_MODEL = DATA / "brake-pooled.npz"   # fist detector trained on everyone (m to rebuild); your own takes if absent
 PUBLISHER = HERE / "myo_lsl_publisher.py"
 TEAM_MYO = "any"                        # first Myo in range, by service UUID: on this Mac BLE scans see no Myo
                                         # and connecting by MAC times out (myo_check.py step 3 is what works).
@@ -242,16 +245,20 @@ def main() -> None:
                   "  the countdown, then RAISE it once to start. Arm forward = go (lower = faster), arm up =\n"
                   "  stop, roll = steer, tip down = reverse, firm fist = brake. Ctrl+C ends the drive.")
             code = run([sys.executable, str(GESTURES), "drive", str(folder), "--mode", "lever",
-                        "--bridge", f"ws://localhost:{port}"])
+                        "--bridge", f"ws://localhost:{port}"]
+                       + (["--brake-model", str(BRAKE_MODEL)] if BRAKE_MODEL.exists() else []))
             if code not in (0, 130):
                 print("\n  The drive stopped with an error (above). If it said the band has moved, press r.")
-            choice = ask("\n  Enter = drive again · r = recalibrate · t = tune turns · q = quit  ")
+            choice = ask("\n  Enter = drive again · r = recalibrate · t = tune turns · m = retrain brake model · q = quit  ")
             if choice == "q":
                 break
             if choice == "r":
                 folder = calibrate(DATA, name)
             elif choice == "t":
                 run([sys.executable, str(GESTURES), "steering", str(folder)])
+            elif choice == "m":
+                print("\n  Training the fist detector on every calibration in data/ (leave-one-out scores follow):")
+                run([sys.executable, str(TRAIN), "--all", "--save", str(BRAKE_MODEL)])
     except (KeyboardInterrupt, Hangup):
         pass
     finally:

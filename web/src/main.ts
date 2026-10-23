@@ -18,6 +18,7 @@ import { CoursePanel } from './ui/coursePanel';
 import { RunLog } from './ui/runLog';
 import { RtlxForm } from './ui/rtlx';
 import { Hud } from './ui/hud';
+import { Minimap } from './ui/minimap';
 import manifest from '../../models/jackal/manifest.json';
 
 // Model files are bundled as hashed assets (works in dev and in the static build, no copy step).
@@ -73,6 +74,7 @@ async function main(): Promise<void> {
     if (!typingInField(e) && e.key.toLowerCase() === 'c' && !e.metaKey && !e.ctrlKey) cams.cycle();
   });
   const hud = new Hud();
+  const minimap = new Minimap();
   const conn = new ConnectionPanel(bridge);
   const coursePanel = new CoursePanel(sim, view);
   let controls: Controls | null = null;
@@ -115,6 +117,7 @@ async function main(): Promise<void> {
     view.setScan(cams.mode === 'top' ? sim.lastScan : null, [sp[3 * ls], sp[3 * ls + 1], sp[3 * ls + 2]], pose.yaw);
     coursePanel.update();
     hud.update(sim, arbiter.localSource ?? sim.gate.stats.lastSource);
+    minimap.update(sim, bridge.lastAssist && now - bridge.lastAssist.at < 500 ? bridge.lastAssist.overlay : null);
     conn.update(performance.now());
     view.render(cams.camera);
     requestAnimationFrame(frame);
