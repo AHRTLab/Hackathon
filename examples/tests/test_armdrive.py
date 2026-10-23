@@ -163,8 +163,11 @@ def test_lever_up_stops_forward_goes_without_any_squeeze():
 def test_lever_fist_brakes_and_leaving_the_pose_needs_a_re_arm():
     c, rest = A.ArmControl(toy_calibration(), lever=True), G.toy_rms()["rest"]
     lever_drive(c, "arm_up", rest)
-    v, w, line = lever_drive(c, "neutral", G.toy_rms()["forward"])
-    assert (v, w) == (0.0, 0.0) and "BRAKE" in line
+    fist = G.toy_rms()["forward"]
+    assert lever_drive(c, "neutral", fist)[0] > 0                  # one frame of fist: a twitch, ignored
+    lever_drive(c, "neutral", fist)
+    v, w, line = lever_drive(c, "neutral", fist)
+    assert (v, w) == (0.0, 0.0) and "BRAKE" in line                # held 3 frames: brake
     assert lever_drive(c, "neutral", rest)[0] > 0                  # let go of the fist: drives again
     assert lever_drive(c, tipped(89), rest)[2].startswith("arm out")   # arm dropped straight down
     v, _, line = lever_drive(c, "neutral", rest)
@@ -191,3 +194,13 @@ def test_expo_softens_small_rolls_but_keeps_full_turn():
     assert 0 < soft.steer(small) < lin.steer(small)
     assert soft.steer(90) == lin.steer(90) == 1.0
     assert lin.steer(-small) < soft.steer(-small) < 0             # right side softened too (own range)
+
+
+def test_lever_arm_holding_activity_does_not_brake():
+    c = A.ArmControl(toy_calibration(), lever=True)
+    cal, rest = c.cal, G.toy_rms()["rest"]
+    lever_drive(c, "arm_up", rest)
+    holding = rest * (cal.rest_level + 0.35 * (cal.fist_level - cal.rest_level)) / cal.rest_level
+    for _ in range(10):
+        v, _, line = lever_drive(c, "neutral", holding)
+    assert v > 0 and "BRAKE" not in line

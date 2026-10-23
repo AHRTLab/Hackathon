@@ -35,6 +35,9 @@ REVERSE_ON = 0.6     # fraction of your tip_down angle that selects reverse
 REVERSE_OFF = 0.45
 LEVER_GRIP_ON = 0.15  # lever --grip: a light grip enables driving (relax = stop) ...
 LEVER_GRIP_OFF = 0.08
+BRAKE_ON = 0.6       # no-grip lever: fist brake at this fraction of the rest → fist range. Holding and
+BRAKE_OFF = 0.45     # rolling the arm alone reads up to ~0.35 of it (AJ, L2 lever run, 2026-10-22)
+BRAKE_FRAMES = 3     # ... held this many commands (150 ms) so a twitch can't brake
 LEVER_STOP = 0.6      # ... arm raised past this fraction of arm_up: stopped
 LEVER_FULL = 0.15     # raised less than this fraction (about level): full speed
 ENVELOPE = 1.5       # roll or tip beyond this × your calibrated range (or tipped up as far as
@@ -146,6 +149,7 @@ class ArmControl:
         self.grip = grip or not lever          # lever without --grip: no squeeze needed; a fist brakes
         self.armed = not lever or grip         # no-grip lever drives only after the arm was raised once
         self.engaged = self.reverse = self.braking = False
+        self.squeezing = 0
         self.g: np.ndarray | None = None
         self.last: dict = {}
 
@@ -170,7 +174,8 @@ class ArmControl:
             self.engaged = frac > (off if self.engaged else on)
             brake = False
         else:                                          # no-grip lever: a firm fist is the brake
-            self.braking = frac > (ENGAGE_OFF if getattr(self, "braking", False) else ENGAGE_ON)
+            self.squeezing = (self.squeezing + 1) if frac > (BRAKE_OFF if self.braking else BRAKE_ON) else 0
+            self.braking = self.squeezing >= (1 if self.braking else BRAKE_FRAMES)
             brake, self.engaged = self.braking, not self.braking
         roll, tip = c.angles(self.g) if self.g is not None else (0.0, 0.0)
         self.reverse = tip > c.tip_down * (REVERSE_OFF if self.reverse else REVERSE_ON)
