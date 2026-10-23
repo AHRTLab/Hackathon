@@ -632,9 +632,9 @@ def main() -> None:
     p.add_argument("--dry-run", action="store_true", help="print decisions, don't send commands")
     p.add_argument("--no-assist", action="store_true", help="switch the lidar assist off")
     p.add_argument("--no-recenter", action="store_true", help="arm mode: skip re-zeroing straight at start")
-    p.add_argument("--lag-comp", action="store_true",
-                   help="measure command lag; when it's ≥100 ms, soften steering and run the assist from where "
-                        "the robot will be when each command lands")
+    p.add_argument("--no-lag-comp", dest="lag_comp", action="store_false",
+                   help="switch off lag compensation (on by default: when the measured command lag is ≥100 ms, "
+                        "soften steering and run the assist from where the robot will be when each command lands)")
     p.add_argument("--blind", type=int, nargs="?", const=8, default=0, metavar="N",
                    help="blind A/B: --lag-comp on or off per session from a hidden balanced schedule of N (8)")
     p.add_argument("--lag-steer", type=float, default=A.LAG_STEER_K,
