@@ -91,7 +91,9 @@ class StateFeed:
                             raw = ws.recv(timeout=0.5)
                         except TimeoutError:
                             continue
-                        self.latest, self.received_at = json.loads(raw), time.monotonic()
+                        m = json.loads(raw)
+                        if m.get("type") == "state":   # events share this socket
+                            self.latest, self.received_at = m, time.monotonic()
             except (OSError, WebSocketException, ValueError):
                 self._halt.wait(1.0)
 
