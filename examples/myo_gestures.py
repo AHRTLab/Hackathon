@@ -366,9 +366,11 @@ class ArmMode:
         cal = self.control.cal
         g = A.mean_gravity(np.concatenate(rows))
         roll, tip = cal.angles(g)
-        if cal.roll_left - roll < A.DEADZONE_DEG + 10 or cal.roll_right - roll > -(A.DEADZONE_DEG + 10):
-            print(f"\r  that pose is {roll:+.0f}° off neutral, too close to a turn: kept the calibrated neutral")
-            return
+        if (cal.roll_left - roll < A.DEADZONE_DEG + 10 or cal.roll_right - roll > -(A.DEADZONE_DEG + 10)
+                or abs(tip) > A.REVERSE_ON * cal.tip_down):
+            sys.exit(f"\r  your straight pose reads roll {roll:+.0f}°, tip {tip:+.0f}° from this calibration: the band "
+                     f"has moved (or you weren't holding straight).\n  Hold straight and try again, or recalibrate:\n"
+                     f"    python examples/myo_gestures.py record <new folder>")
         cal.recenter(g)
         print(f"\r  ✓ straight is {roll:+.0f}° roll, {tip:+.0f}° tip from your calibration; "
               f"full turn {self.control.full[1] or A.STEER_FULL * cal.roll_left:+.0f}° / "
