@@ -33,7 +33,7 @@ STEER_FULL = 0.7     # full turn at this fraction of your comfortable roll on th
 EXPO = 0.5           # 0 = linear; higher = gentler near straight, still full at the end (RC expo)
 REVERSE_ON = 0.6     # fraction of your tip_down angle that selects reverse
 REVERSE_OFF = 0.45
-LEVER_GRIP_ON = 0.15  # lever mode: a light grip enables driving (relax = stop) ...
+LEVER_GRIP_ON = 0.15  # lever --grip: a light grip enables driving (relax = stop) ...
 LEVER_GRIP_OFF = 0.08
 LEVER_STOP = 0.6      # ... arm raised past this fraction of arm_up: stopped
 LEVER_FULL = 0.15     # raised less than this fraction (about level): full speed
@@ -139,11 +139,13 @@ class ArmControl:
     tip down → reverse gear. Stateful (hysteresis, smoothing)."""
 
     def __init__(self, cal: Calibration, v_max: float = V_MAX, w_max: float = W_MAX, lever: bool = False,
-                 expo: float = EXPO):
+                 expo: float = EXPO, grip: bool = False):
         if lever and cal.tip_up > -15:
             raise ValueError("lever mode needs arm_up takes (forearm raised to where stop feels natural)")
         self.cal, self.v_max, self.w_max, self.lever, self.expo = cal, v_max, w_max, lever, expo
-        self.engaged = self.reverse = False
+        self.grip = grip or not lever          # lever without --grip: no squeeze needed; a fist brakes
+        self.armed = not lever or grip         # no-grip lever drives only after the arm was raised once
+        self.engaged = self.reverse = self.braking = False
         self.g: np.ndarray | None = None
         self.last: dict = {}
 
@@ -163,8 +165,13 @@ class ArmControl:
         c = self.cal
         level = emg_level(emg_window)
         frac = (level - c.rest_level) / max(c.fist_level - c.rest_level, 1e-6)
-        on, off = (LEVER_GRIP_ON, LEVER_GRIP_OFF) if self.lever else (ENGAGE_ON, ENGAGE_OFF)
-        self.engaged = frac > (off if self.engaged else on)
+        if self.grip:                                  # squeeze (or lever's light grip) enables
+            on, off = (LEVER_GRIP_ON, LEVER_GRIP_OFF) if self.lever else (ENGAGE_ON, ENGAGE_OFF)
+            self.engaged = frac > (off if self.engaged else on)
+            brake = False
+        else:                                          # no-grip lever: a firm fist is the brake
+            self.braking = frac > (ENGAGE_OFF if getattr(self, "braking", False) else ENGAGE_ON)
+            brake, self.engaged = self.braking, not self.braking
         roll, tip = c.angles(self.g) if self.g is not None else (0.0, 0.0)
         self.reverse = tip > c.tip_down * (REVERSE_OFF if self.reverse else REVERSE_ON)
         if self.lever:
@@ -173,25 +180,31 @@ class ArmControl:
             raised = tip < stop                       # roll means nothing near vertical: don't judge it
             outside = (not raised and (roll > ENVELOPE * c.roll_left or roll < ENVELOPE * c.roll_right)
                        or tip > ENVELOPE * c.tip_down or tip < ENVELOPE * c.tip_up)
+            if raised:
+                self.armed = True
         else:
             throttle = float(np.clip(frac, 0, 1))
             outside = (roll > ENVELOPE * c.roll_left or roll < ENVELOPE * c.roll_right
                        or tip > ENVELOPE * c.tip_down or tip < -c.tip_down)
-        self.last = {"level": level, "roll": roll, "tip": tip, "engaged": self.engaged,
-                     "reverse": self.reverse, "outside": outside}
+        if outside and not self.grip:
+            self.armed = False                         # left the driving pose: raise the arm to re-arm
+        self.last = {"level": level, "roll": roll, "tip": tip, "engaged": self.engaged, "brake": brake,
+                     "armed": self.armed, "reverse": self.reverse, "outside": outside}
+        where = f"level {level:5.1f}  roll {roll:+4.0f}°  tip {tip:+4.0f}°"
         if outside:
-            return 0.0, 0.0, f"arm out of driving pose: stopped  roll {roll:+4.0f}°  tip {tip:+4.0f}°"
+            return 0.0, 0.0, f"arm out of driving pose: stopped  {where}"
+        if not self.armed:
+            return 0.0, 0.0, f"raise your arm to start  {where}"
+        if brake:
+            return 0.0, 0.0, f"BRAKE (fist)  {where}"
         if not self.engaged:
-            v = w = 0.0
+            return 0.0, 0.0, f"D rest  {where}"
+        if self.reverse:
+            v, w = -V_REVERSE * (1.0 if self.lever else throttle), 0.0
         else:
-            if self.reverse:
-                v, w = -V_REVERSE * (1.0 if self.lever else throttle), 0.0
-            else:
-                v = self.v_max * throttle
-                w = self.w_max * self.steer(roll) if throttle > 0 else 0.0
-        gear = "R" if self.reverse else "D"
-        what = ("go" if self.engaged else "rest")
-        return v, w, f"{gear} {what:4s} level {level:5.1f}  roll {roll:+4.0f}°  tip {tip:+4.0f}°"
+            v = self.v_max * throttle
+            w = self.w_max * self.steer(roll) if throttle > 0 else 0.0
+        return v, w, f"{'R' if self.reverse else 'D'} go    {where}"
 
 
 # ------------------------------------------------------------------------------------- lidar assist

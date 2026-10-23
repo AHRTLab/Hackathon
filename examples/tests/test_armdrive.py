@@ -135,13 +135,11 @@ def light_grip_rms():
     return rms["rest"] + 0.3 * (rms["forward"] - rms["rest"])     # ~30% of the squeeze range
 
 
-def lever_in(pose_or_gravity, grip=True):
-    c = A.ArmControl(toy_calibration(), lever=True)
+def lever_drive(c, pose_or_gravity, rms):
     g = A.toy_gravity()[pose_or_gravity] if isinstance(pose_or_gravity, str) else pose_or_gravity
     c.feed_imu(A.synth_imu(g, 2.0, 50.0, RNG))
-    rms = light_grip_rms() if grip else G.toy_rms()["rest"]
-    v, w, _ = c.step(G.synth_emg(rms, 0.2, 200.0, RNG))
-    return v, w
+    v, w, line = c.step(G.synth_emg(rms, 0.2, 200.0, RNG))
+    return v, w, line
 
 
 def tipped(deg):
@@ -149,16 +147,34 @@ def tipped(deg):
     return np.array([math.sin(t), 0.0, math.cos(t)])
 
 
-def test_lever_arm_height_is_the_throttle_with_a_light_grip_enable():
-    assert lever_in("arm_up") == (0.0, 0.0)                     # raised: stop
-    v_level, w_level = lever_in("neutral")
-    assert v_level == pytest.approx(A.V_MAX) and abs(w_level) < 0.1   # level + light grip: full speed
-    v_mid, _ = lever_in(tipped(-25))
-    assert 0 < v_mid < A.V_MAX                                   # half raised: in between
-    assert lever_in("neutral", grip=False) == (0.0, 0.0)        # hand relaxed: stop, whatever the arm does
-    assert lever_in("tip_down")[0] == -A.V_REVERSE              # tipped down: reverse
-    v, w = lever_in("roll_left")
-    assert v > 0 and w > 1.0                                     # steering as in arm mode
+def test_lever_up_stops_forward_goes_without_any_squeeze():
+    c, rest = A.ArmControl(toy_calibration(), lever=True), G.toy_rms()["rest"]
+    v, w, line = lever_drive(c, "neutral", rest)
+    assert (v, w) == (0.0, 0.0) and "raise" in line               # not armed yet: no lurch at start
+    assert lever_drive(c, "arm_up", rest)[:2] == (0.0, 0.0)        # raised: armed, stopped
+    v, w, _ = lever_drive(c, "neutral", rest)
+    assert v == pytest.approx(A.V_MAX) and abs(w) < 0.1           # forward, hand relaxed: full speed
+    assert 0 < lever_drive(c, tipped(-25), rest)[0] < A.V_MAX      # half raised: in between
+    v, w, _ = lever_drive(c, "roll_left", rest)
+    assert v > 0 and w > 1.0                                       # steering as in arm mode
+    assert lever_drive(c, "tip_down", rest)[0] == -A.V_REVERSE     # tipped down: reverse
+
+
+def test_lever_fist_brakes_and_leaving_the_pose_needs_a_re_arm():
+    c, rest = A.ArmControl(toy_calibration(), lever=True), G.toy_rms()["rest"]
+    lever_drive(c, "arm_up", rest)
+    v, w, line = lever_drive(c, "neutral", G.toy_rms()["forward"])
+    assert (v, w) == (0.0, 0.0) and "BRAKE" in line
+    assert lever_drive(c, "neutral", rest)[0] > 0                  # let go of the fist: drives again
+    assert lever_drive(c, tipped(89), rest)[2].startswith("arm out")   # arm dropped straight down
+    v, _, line = lever_drive(c, "neutral", rest)
+    assert v == 0 and "raise" in line                              # must raise again before it drives
+
+
+def test_lever_grip_option_needs_a_light_grip():
+    c = A.ArmControl(toy_calibration(), lever=True, grip=True)
+    assert lever_drive(c, "neutral", G.toy_rms()["rest"])[:2] == (0.0, 0.0)
+    assert lever_drive(c, "neutral", light_grip_rms())[0] == pytest.approx(A.V_MAX)
 
 
 def test_lever_needs_arm_up_takes():

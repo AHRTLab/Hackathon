@@ -4,8 +4,9 @@
   --mode arm (default)  squeeze to go (harder = faster), roll your forearm to steer, tip it down for
                         reverse, relax to stop. Needs takes: rest, forward (EMG) and neutral, roll_left,
                         roll_right, tip_down (IMU); `calibrate` records them all in ~30 s.
-  --mode lever          like arm, but your arm's height is the throttle: raised = stop, level = full
-                        speed, with a light grip as the enable (relax = stop). Needs arm_up takes too.
+  --mode lever          like arm, but your arm's height is the throttle: raised = stop, forward = go,
+                        no squeeze needed; a fist brakes. Raise the arm once to start. Needs arm_up takes.
+                        (--grip: require a light grip to drive instead, relax = stop)
   --mode gestures       five EMG gestures: rest stop, fist forward, hand points left / right to turn,
                         spread fingers to reverse. Needs takes of each, recorded in lsl-web-viewer.
   Both: a lidar assist slows before obstacles and nudges off walls (--no-assist to switch it off).
@@ -310,9 +311,10 @@ class GestureMode:
 class ArmMode:
     needs_imu = True
 
-    def __init__(self, folder: str, v_max: float, w_max: float, lever: bool = False, expo: float = A.EXPO):
+    def __init__(self, folder: str, v_max: float, w_max: float, lever: bool = False, expo: float = A.EXPO,
+                 grip: bool = False):
         try:
-            self.control = A.ArmControl(report_calibration(folder), v_max, w_max, lever, expo)
+            self.control = A.ArmControl(report_calibration(folder), v_max, w_max, lever, expo, grip)
         except ValueError as e:
             sys.exit(str(e))
 
@@ -404,7 +406,8 @@ class DriveLog:
 
 def cmd_drive(args: argparse.Namespace) -> None:
     mode = (GestureMode(args.folder) if args.mode == "gestures"
-            else ArmMode(args.folder, args.vmax, args.wmax, lever=args.mode == "lever", expo=args.expo))
+            else ArmMode(args.folder, args.vmax, args.wmax, lever=args.mode == "lever", expo=args.expo,
+                         grip=args.grip))
     emg = Inlet(args.stream)
     imu = Inlet(args.imu_stream) if mode.needs_imu else None
     window: deque = deque(maxlen=round(G.WINDOW_S * (emg.srate or 200.0)))
@@ -510,6 +513,7 @@ def main() -> None:
     p.add_argument("--no-log", action="store_true", help="don't write data/<team>/drives/drive_*.csv")
     p.add_argument("--vmax", type=float, default=A.V_MAX, help="arm mode: m/s at a full squeeze")
     p.add_argument("--wmax", type=float, default=A.W_MAX, help="arm mode: rad/s at full roll")
+    p.add_argument("--grip", action="store_true", help="lever mode: require a light grip to drive")
     p.add_argument("--expo", type=float, default=A.EXPO,
                    help="arm mode: 0 = linear steering, up to 1 = much gentler near straight (default %(default)s)")
     p.add_argument("--bridge", default="ws://localhost:8765", help="bridge base URL (default %(default)s)")
