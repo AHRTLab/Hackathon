@@ -15,6 +15,7 @@
             or record takes in lsl-web-viewer, the label being the gesture or pose name
             ("forward-left" counts as forward: a fist held while rolled left).
 2. Check.   python myo_gestures.py report data/<team>
+            python myo_gestures.py steering data/<team>    full-turn roll per side, from your drives
 3. Compare. python myo_gestures.py synth --out data/synthetic        (toy forearm model)
             python myo_gestures.py compare data/<team> data/synthetic
             python myo_gestures.py synth --from data/<team> --out data/synth-me --shift 1
@@ -312,9 +313,10 @@ class ArmMode:
     needs_imu = True
 
     def __init__(self, folder: str, v_max: float, w_max: float, lever: bool = False, expo: float = A.EXPO,
-                 grip: bool = False):
+                 grip: bool = False, full_left: float = 0.0, full_right: float = 0.0):
         try:
-            self.control = A.ArmControl(report_calibration(folder), v_max, w_max, lever, expo, grip)
+            self.control = A.ArmControl(report_calibration(folder), v_max, w_max, lever, expo, grip,
+                                        full_left, full_right)
         except ValueError as e:
             sys.exit(str(e))
 
@@ -345,7 +347,8 @@ class ArmMode:
             return
         cal.recenter(g)
         print(f"\r  ✓ straight is {roll:+.0f}° roll, {tip:+.0f}° tip from your calibration; "
-              f"full turn now {A.STEER_FULL * cal.roll_left:+.0f}° / {A.STEER_FULL * cal.roll_right:+.0f}° from here")
+              f"full turn {self.control.full[1] or A.STEER_FULL * cal.roll_left:+.0f}° / "
+              f"{-(self.control.full[-1] or -A.STEER_FULL * cal.roll_right):+.0f}° from here")
 
     def feed_imu(self, rows: np.ndarray, srate: float) -> None:
         if rows.size:
@@ -404,10 +407,49 @@ class DriveLog:
         return str(self.path)
 
 
+STEER_REACH = 0.85   # full turn at this fraction of the roll you reach (95th percentile) while driving
+
+
+def steering_from_logs(paths: list[Path]) -> dict[str, float]:
+    """Per-side full-turn roll (degrees from straight) from arm/lever drive logs: how far you actually
+    roll each way while moving."""
+    import csv
+    left, right = [], []
+    for p in paths:
+        for r in csv.DictReader(open(p)):
+            if "roll" not in r or r.get("outside") == "True" or float(r.get("v") or 0) <= 0.05:
+                continue
+            (left if float(r["roll"]) > 0 else right).append(abs(float(r["roll"])))
+    if len(left) < 20 or len(right) < 20:
+        raise ValueError("not enough turning in these logs: drive a course with both left and right turns")
+    return {"full_left": round(STEER_REACH * float(np.percentile(left, 95)), 1),
+            "full_right": round(STEER_REACH * float(np.percentile(right, 95)), 1),
+            "from": [p.name for p in paths]}
+
+
+def cmd_steering(args: argparse.Namespace) -> None:
+    logs = sorted((Path(args.folder) / "drives").glob("drive_*_*.csv"))
+    logs = [p for p in logs if not p.stem.endswith("gestures")][-args.last:]
+    try:
+        tuned = steering_from_logs(logs)
+    except ValueError as e:
+        sys.exit(str(e))
+    out = Path(args.folder) / "steering.json"
+    out.write_text(json.dumps(tuned, indent=2))
+    print(f"from {len(logs)} drive log(s): full left turn at {tuned['full_left']:.0f}°, "
+          f"full right at {tuned['full_right']:.0f}° of roll from straight → {out}")
+
+
 def cmd_drive(args: argparse.Namespace) -> None:
+    tuned = Path(args.folder) / "steering.json"
+    if args.mode != "gestures" and tuned.exists():
+        t = json.loads(tuned.read_text())
+        args.full_left = args.full_left or t.get("full_left", 0.0)
+        args.full_right = args.full_right or t.get("full_right", 0.0)
+        print(f"steering: full turn at {args.full_left:.0f}° left / {args.full_right:.0f}° right ({tuned.name})")
     mode = (GestureMode(args.folder) if args.mode == "gestures"
             else ArmMode(args.folder, args.vmax, args.wmax, lever=args.mode == "lever", expo=args.expo,
-                         grip=args.grip))
+                         grip=args.grip, full_left=args.full_left, full_right=args.full_right))
     emg = Inlet(args.stream)
     imu = Inlet(args.imu_stream) if mode.needs_imu else None
     window: deque = deque(maxlen=round(G.WINDOW_S * (emg.srate or 200.0)))
@@ -504,6 +546,11 @@ def main() -> None:
             p.add_argument("--script", help='e.g. "rest:2,forward:3,forward@roll_left:2" (then stop)')
             streams(p)
 
+    p = sub.add_parser("steering", help="set each side's full-turn roll from your drive logs")
+    p.add_argument("folder", help="your takes, e.g. data/<team> (reads <folder>/drives)")
+    p.add_argument("--last", type=int, default=3, help="use the last N arm/lever drive logs")
+    p.set_defaults(fn=cmd_steering)
+
     p = sub.add_parser("drive", help="drive from the live Myo")
     p.add_argument("folder", help="your takes, e.g. data/<team>")
     p.add_argument("--mode", choices=("arm", "lever", "gestures"), default="arm")
@@ -514,6 +561,10 @@ def main() -> None:
     p.add_argument("--vmax", type=float, default=A.V_MAX, help="arm mode: m/s at a full squeeze")
     p.add_argument("--wmax", type=float, default=A.W_MAX, help="arm mode: rad/s at full roll")
     p.add_argument("--grip", action="store_true", help="lever mode: require a light grip to drive")
+    p.add_argument("--full-left", type=float, default=0.0, metavar="DEG",
+                   help="roll from straight for a full left turn (default: 70%% of the calibrated roll)")
+    p.add_argument("--full-right", type=float, default=0.0, metavar="DEG",
+                   help="... and for a full right turn (`steering` sets both from your drive logs)")
     p.add_argument("--expo", type=float, default=A.EXPO,
                    help="arm mode: 0 = linear steering, up to 1 = much gentler near straight (default %(default)s)")
     p.add_argument("--bridge", default="ws://localhost:8765", help="bridge base URL (default %(default)s)")

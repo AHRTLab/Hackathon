@@ -142,10 +142,11 @@ class ArmControl:
     tip down → reverse gear. Stateful (hysteresis, smoothing)."""
 
     def __init__(self, cal: Calibration, v_max: float = V_MAX, w_max: float = W_MAX, lever: bool = False,
-                 expo: float = EXPO, grip: bool = False):
+                 expo: float = EXPO, grip: bool = False, full_left: float = 0.0, full_right: float = 0.0):
         if lever and cal.tip_up > -15:
             raise ValueError("lever mode needs arm_up takes (forearm raised to where stop feels natural)")
         self.cal, self.v_max, self.w_max, self.lever, self.expo = cal, v_max, w_max, lever, expo
+        self.full = {1: full_left, -1: full_right}     # degrees from straight for a full turn; 0 = from calibration
         self.grip = grip or not lever          # lever without --grip: no squeeze needed; a fist brakes
         self.armed = not lever or grip         # no-grip lever drives only after the arm was raised once
         self.engaged = self.reverse = self.braking = False
@@ -160,7 +161,7 @@ class ArmControl:
 
     def steer(self, roll: float) -> float:
         side = self.cal.roll_left if roll > 0 else self.cal.roll_right
-        full = max(STEER_FULL * abs(side), DEADZONE_DEG + 5)
+        full = max(self.full[1 if roll > 0 else -1] or STEER_FULL * abs(side), DEADZONE_DEG + 5)
         s = float(np.clip((abs(roll) - DEADZONE_DEG) / (full - DEADZONE_DEG), 0, 1))
         s = (1 - self.expo) * s + self.expo * s ** 3
         return math.copysign(s, roll)

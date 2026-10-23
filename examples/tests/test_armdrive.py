@@ -204,3 +204,21 @@ def test_lever_arm_holding_activity_does_not_brake():
     for _ in range(10):
         v, _, line = lever_drive(c, "neutral", holding)
     assert v > 0 and "BRAKE" not in line
+
+
+def test_full_turn_angles_can_be_set_per_side():
+    c = A.ArmControl(toy_calibration(), expo=0.0, full_left=50, full_right=28)
+    assert c.steer(50) == 1.0 and c.steer(-28) == -1.0
+    assert c.steer(-20) < -0.4 and c.steer(20) < 0.4              # the right side is quicker now
+
+
+def test_steering_tuned_from_drive_logs(tmp_path):
+    import myo_gestures as M
+    log = tmp_path / "drive_1_lever.csv"
+    rolls = list(np.linspace(0, 70, 60)) + list(np.linspace(0, -32, 60))
+    log.write_text("t,roll,outside,v\n" + "".join(f"{i},{r},False,0.5\n" for i, r in enumerate(rolls)))
+    tuned = M.steering_from_logs([log])
+    assert tuned["full_left"] == pytest.approx(M.STEER_REACH * np.percentile(rolls[:60], 95), abs=0.1)
+    assert tuned["full_right"] < tuned["full_left"]
+    with pytest.raises(ValueError):
+        M.steering_from_logs([])
