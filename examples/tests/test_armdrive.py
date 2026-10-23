@@ -470,3 +470,56 @@ def test_lag_ignores_a_previous_controllers_echo():
     assert lag.latency == 0.0
     lag.observe(100.35, 100.0)
     assert lag.latency == pytest.approx(0.35)
+
+
+# ------------------------------------------------------------------------------------ gate assist
+def scan_with_posts(posts, lidar_x=A.LIDAR_X):
+    """Posts (x, y) in the robot frame, as 0.05 m cylinders seen by the 180-beam lidar."""
+    ang = -2.356 + 0.02618 * np.arange(180)
+    r = np.full(180, 10.0)
+    for (px, py) in posts:
+        px -= lidar_x
+        perp = np.abs(px * np.sin(ang) - py * np.cos(ang))
+        along = px * np.cos(ang) + py * np.sin(ang)
+        hit = (along > 0) & (perp < 0.05)
+        r = np.where(hit, np.minimum(r, along - np.sqrt(np.clip(0.05 ** 2 - perp ** 2, 0, None))), r)
+    return {"scan": {"angle_min": -2.356, "angle_inc": 0.02618, "range_max": 10.0, "ranges": r.tolist()}}
+
+
+def test_gate_assist_centres_a_gate_the_driver_is_aimed_at_and_is_bounded():
+    gate = [(1.6, 0.65), (1.6, -0.35)]                     # 1 m wide, centre 0.15 m to our left
+    v, w, note = A.assist(1.0, 0.0, scan_with_posts(gate))
+    assert 0 < w <= A.GATE_NUDGE_MAX and "gate" in note   # a small nudge left
+    assert v == pytest.approx(1.0)                         # posts beside the path: no slowing
+    _, w0, _ = A.assist(1.0, 0.0, scan_with_posts(gate), gate=False)
+    assert w0 == 0                                         # switched off: untouched
+
+
+def test_gate_assist_ignores_gates_the_driver_is_not_aimed_at_far_away_or_lone_posts():
+    off = [(1.5, -0.9), (1.5, -1.9)]                       # well to the right: outside the cone
+    assert A.assist(1.0, 0.0, scan_with_posts(off))[1] == 0
+    far = [(4.0, 0.5), (4.0, -0.5)]
+    assert A.assist(1.0, 0.0, scan_with_posts(far))[1] == 0
+    assert A.assist(1.0, 0.0, scan_with_posts([(1.5, 0.5)]))[1] == 0
+    assert A.assist(0.0, 0.0, scan_with_posts([(1.6, 0.65), (1.6, -0.35)])) == (0.0, 0.0, "")  # stopped: nothing
+
+
+def test_gate_assist_steers_a_blind_approach_through_the_posts():
+    """Driver holds straight, 0.3 m off the centreline of a 1 m gate: without the assist the chassis
+    clips a post; with it the robot crosses inside the posts."""
+    def run(gate_on):
+        x, y, yaw, v, dt, w_app = -2.5, -0.3, 0.0, 1.0, 0.05, 0.0
+        for _ in range(80):
+            posts = []
+            for (wx, wy) in ((0, 0.5), (0, -0.5)):      # into the robot frame
+                px, py = (wx - x) * math.cos(-yaw) - (wy - y) * math.sin(-yaw), (wx - x) * math.sin(-yaw) + (wy - y) * math.cos(-yaw)
+                posts.append((px, py))
+            _, w_cmd, _ = A.assist(v, 0.0, scan_with_posts(posts), gate=gate_on)
+            w_app += float(np.clip(w_cmd - w_app, -12 * dt, 6 * dt))   # the bridge's yaw ramp
+            yaw += w_app * dt
+            x, y = x + v * math.cos(yaw) * dt, y + v * math.sin(yaw) * dt
+            if x >= 0:
+                return y
+        return None
+    assert abs(run(False)) + A.ROBOT_HALF_WIDTH > 0.5 - 0.05      # clips the post at y = -0.5
+    assert abs(run(True)) + A.ROBOT_HALF_WIDTH < 0.5 - 0.05       # clean pass

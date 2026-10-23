@@ -169,7 +169,9 @@ class Publisher(MyoClient):
 
 
 async def connect(addr: str | None, timeout: float) -> Publisher:
-    if addr is None:
+    if addr == "any":          # skip the scan: connect to the first Myo by its service UUID (works on macOS
+        addr = None            # when scans report nothing, as myo_check.py step 3 does)
+    elif addr is None:
         myos, real = await scan()
         if not myos:
             raise RuntimeError("no Myo found: wake it (move it), close Myo Connect, check Bluetooth is on")
@@ -241,7 +243,7 @@ async def list_myos() -> int:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--list", action="store_true", help="list nearby Myos and exit")
-    ap.add_argument("--addr", help="connect to this Myo (address from --list); default: the nearest")
+    ap.add_argument("--addr", help="connect to this Myo (address from --list), or 'any' = first Myo by service UUID, no scan; default: the nearest")
     ap.add_argument("--mode", choices=list(MODES), default="filtered", help="EMG mode (default: filtered)")
     ap.add_argument("--no-sync", dest="sync", action="store_false", help="skip the arm sync")
     ap.add_argument("--timeout", type=float, default=20.0, help="seconds to wait for a connection")

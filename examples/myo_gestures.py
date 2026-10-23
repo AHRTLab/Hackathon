@@ -9,7 +9,8 @@
                         (--grip: require a light grip to drive instead, relax = stop)
   --mode gestures       five EMG gestures: rest stop, fist forward, hand points left / right to turn,
                         spread fingers to reverse. Needs takes of each, recorded in lsl-web-viewer.
-  Both: a lidar assist slows before obstacles and nudges off walls (--no-assist to switch it off).
+  Both: a lidar assist slows before obstacles, nudges off walls and keeps the lane through the gate you
+  are aimed at, lane-keeping style, at most 0.3 rad/s (--no-assist switches all of it off, --no-gate just the gate part).
 
 1. Record.  python myo_gestures.py calibrate data/<team>       guided, Myo_EMG + Myo_IMU, ~40 s
             python myo_gestures.py record data/<team>-lever    lever dataset: 6 poses × 2, 3, 5 s
@@ -588,7 +589,7 @@ def cmd_drive(args: argparse.Namespace) -> None:
                     w *= lag.steer_gain(args.lag_steer)
                 if not args.no_assist:
                     ahead = lag.in_flight(time.time()) if args.lag_comp else (0.0, 0.0, 0.0)
-                    v, w, note = A.assist(v, w, state, ahead)
+                    v, w, note = A.assist(v, w, state, ahead, gate=not args.no_gate, w_max=args.wmax)
                     line += f"  [{note}]" if note else ""
                 if lag.latency >= A.LAG_ON_S:
                     line += f"  [lag {lag.latency * 1000:.0f} ms" + (" comp]" if args.lag_comp and not args.blind else "]")
@@ -671,6 +672,7 @@ def main() -> None:
     p.add_argument("--mode", choices=("arm", "lever", "gestures"), default="arm")
     p.add_argument("--dry-run", action="store_true", help="print decisions, don't send commands")
     p.add_argument("--no-assist", action="store_true", help="switch the lidar assist off")
+    p.add_argument("--no-gate", action="store_true", help="keep the lidar assist but switch off the gate lane keeping")
     p.add_argument("--no-recenter", action="store_true", help="arm mode: skip re-zeroing straight at start")
     p.add_argument("--no-lag-comp", dest="lag_comp", action="store_false",
                    help="switch off lag compensation (on by default: when the measured command lag is ≥100 ms, "

@@ -26,7 +26,9 @@ HERE = Path(__file__).resolve().parent
 DATA = HERE.parent / "data"
 GESTURES = HERE / "myo_gestures.py"
 PUBLISHER = HERE / "myo_lsl_publisher.py"
-TEAM_MYO = "EE:B9:D8:83:AD:5B"          # our armband; another team's Myo is often in range
+TEAM_MYO = "any"                        # first Myo in range, by service UUID: on this Mac BLE scans see no Myo
+                                        # and connecting by MAC times out (myo_check.py step 3 is what works).
+                                        # Our band: EC:26:ED:BC:F1:E4 (--addr <MAC> if two Myos are in range)
 WS_PORTS = (8765, *range(8790, 8800))   # the bridge's default first (something else may hold it)
 UDP_PORTS = (9870, *range(9871, 9880))
 COMPLETE = "calibration-complete"       # written once `record` has finished every take

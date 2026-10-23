@@ -47,7 +47,7 @@ LEVER_STOP = 0.6      # ... arm raised past this fraction of arm_up: stopped
 LEVER_FULL = 0.15     # raised less than this fraction (about level): full speed
 ENVELOPE = 1.5       # roll or tip beyond this × your calibrated range (or tipped up as far as
                      # tip_down) means the arm left the driving pose: stop
-V_MAX = 1.0          # m/s at a full squeeze
+V_MAX = 1.4          # m/s at a full squeeze / arm level (protocol limit 2.0; L3 caps it to 1.0 anyway)
 V_REVERSE = 0.4
 W_MAX = 1.6          # rad/s at full roll
 GRAVITY_TAU_S = 0.1  # smoothing of the accelerometer (arm movement adds non-gravity acceleration)
@@ -59,6 +59,14 @@ STOP_GAP = 0.12            # m of free space kept in front of the bumper
 SLOW_GAP = 1.0             # start slowing when something is this close ahead
 SIDE_GAP = 0.25            # nudge away from a wall closer than this beside the robot
 NUDGE_MAX = 0.6            # rad/s: the assist can bend your path, never take over
+GATE_NUDGE_MAX = 0.3       # rad/s the gate assist may add toward the gate's centreline (lane keeping)
+GATE_NUDGE_GAIN = 1.2      # rad/s per rad of heading error to the aim point
+GATE_CONE_DEG = 20.0       # help only if the driver is already aimed this close to the gate's path
+GATE_RANGE = 2.5           # m: help only this close to the gate
+GATE_POST_RANGE = 3.0      # m: posts (0.1 m wide) fall between 1.5° beams further away than this
+GATE_WIDTH = (0.8, 1.8)    # m: post-to-post distances that count as a gate (courses: 0.9 to 1.6)
+GATE_LOOKAHEAD = (0.4, 1.2)  # m: aim this far before the gate, on its centreline (scales with distance)
+GATE_TURN_COMFORT = 0.7    # cap v so the turn onto the centreline needs at most this × W_MAX
 
 
 def unit(v: np.ndarray) -> np.ndarray:
@@ -261,9 +269,10 @@ def train_brake(folder: str | Path) -> "G.LDA | None":
 
 
 # ------------------------------------------------------------------------------------- lidar assist
-def assist(v: float, w: float, state: dict, ahead: tuple[float, float, float] = (0.0, 0.0, 0.0)
-           ) -> tuple[float, float, str]:
-    """Shared control: slow before an obstacle ahead and bend away from a close wall. The driver's
+def assist(v: float, w: float, state: dict, ahead: tuple[float, float, float] = (0.0, 0.0, 0.0),
+           gate: bool = True, w_max: float = W_MAX) -> tuple[float, float, str]:
+    """Shared control: slow before an obstacle ahead, bend away from a close wall, and (gate=True) keep
+    the lane through the next gate the driver is aimed at, see gate_assist(). The driver's
     direction always wins; reverse is untouched (the lidar only sees forward). `ahead` = (dx, dy, dθ):
     judge from where the robot will be when this command lands (LagModel.in_flight), not where it is."""
     scan = state.get("scan") if state else None
@@ -272,11 +281,13 @@ def assist(v: float, w: float, state: dict, ahead: tuple[float, float, float] = 
     r = np.asarray(scan["ranges"], dtype=float)
     ang = scan["angle_min"] + scan["angle_inc"] * np.arange(len(r))
     ok = np.isfinite(r) & (r < scan.get("range_max", 10.0))
-    x, y = LIDAR_X + r[ok] * np.cos(ang[ok]), r[ok] * np.sin(ang[ok])   # robot frame, x forward
+    r_all = np.where(np.isfinite(r), r, scan.get("range_max", 10.0))   # every beam, in order (for posts)
+    x_all, y_all = LIDAR_X + r_all * np.cos(ang), r_all * np.sin(ang)
     dx, dy, dth = ahead
     if dx or dy or dth:                                   # into the predicted robot frame
         c, s_ = math.cos(dth), math.sin(dth)
-        x, y = c * (x - dx) + s_ * (y - dy), -s_ * (x - dx) + c * (y - dy)
+        x_all, y_all = c * (x_all - dx) + s_ * (y_all - dy), -s_ * (x_all - dx) + c * (y_all - dy)
+    x, y = x_all[ok], y_all[ok]                           # robot frame, x forward; hits only
 
     # heading where we are going: points in the robot's swept corridor, curved by the turn rate
     ahead = x > ROBOT_HALF_LENGTH
@@ -301,7 +312,81 @@ def assist(v: float, w: float, state: dict, ahead: tuple[float, float, float] = 
         note.append(f"slow {scale:.0%}")
     if abs(nudge) > 0.05:
         note.append("nudge " + ("right" if nudge < 0 else "left"))
+
+    if gate:                                              # lane keeping through the next gate
+        g = gate_assist(x_all, y_all, r_all, w_max)
+        if g is not None:
+            w2 += g["w"]
+            v2 = min(v2, g["v_cap"])
+            note.append(f"gate {g['dist']:.1f} m " + ("→" if g["w"] < -0.02 else "←" if g["w"] > 0.02 else "·"))
     return v2, w2, ", ".join(note)
+
+
+# ------------------------------------------------------------------------------------ gate assist
+def find_posts(x: np.ndarray, y: np.ndarray, r: np.ndarray) -> list[tuple[float, float]]:
+    """Gate posts in the scan: islands of 1-3 adjacent beams much closer than the beams either side.
+    x, y are the returns in the robot frame (in beam order), r their ranges."""
+    posts: list[tuple[float, float]] = []
+    n, i = len(r), 0
+    while i < n:
+        if r[i] < GATE_POST_RANGE:
+            j = i
+            while j + 1 < n and abs(r[j + 1] - r[i]) < 0.15:
+                j += 1
+            left_bg = r[i - 1] if i > 0 else np.inf
+            right_bg = r[j + 1] if j + 1 < n else np.inf
+            if j - i + 1 <= 3 and left_bg - r[i] > 0.4 and right_bg - r[i] > 0.4:
+                k = (i + j) // 2
+                posts.append((float(x[k]), float(y[k])))
+            i = j + 1
+        else:
+            i += 1
+    return posts
+
+
+def find_gate(x: np.ndarray, y: np.ndarray, r: np.ndarray) -> dict | None:
+    """The nearest plausible gate ahead: midpoint, unit normal (the way to cross it), width, distance."""
+    posts = find_posts(x, y, r)
+    best = None
+    for a in range(len(posts)):
+        for b in range(a + 1, len(posts)):
+            (x1, y1), (x2, y2) = posts[a], posts[b]
+            width = math.hypot(x1 - x2, y1 - y2)
+            if not GATE_WIDTH[0] <= width <= GATE_WIDTH[1]:
+                continue
+            mx, my = (x1 + x2) / 2, (y1 + y2) / 2
+            d = math.hypot(mx, my)
+            if mx > 0.2 and d <= GATE_RANGE and (best is None or d < best["dist"]):
+                nx, ny = -(y2 - y1) / width, (x2 - x1) / width
+                if nx < 0:
+                    nx, ny = -nx, -ny                    # point away from us
+                best = {"mid": (mx, my), "normal": (nx, ny), "width": width, "dist": d,
+                        "posts": [(x1, y1), (x2, y2)]}
+    return best
+
+
+def gate_assist(x: np.ndarray, y: np.ndarray, r: np.ndarray, w_max: float = W_MAX) -> dict | None:
+    """Lane keeping for gates: a small, bounded steering correction toward the shortest smooth path
+    through the nearest gate the driver is ALREADY aimed at, plus a speed cap that makes that path
+    drivable. The path is one arc from the robot (tangent to its heading) to an aim point on the gate's
+    centreline a little before the gate, then straight through. Nothing if no gate is ahead, if the
+    driver points elsewhere (> GATE_CONE_DEG), or in the last 30 cm. Never picks a gate on its own."""
+    g = find_gate(x, y, r)                                # x, y, r: every beam in order, r = range
+    if g is None:
+        return None
+    mx, my = g["mid"]; nx, ny = g["normal"]
+    L = min(GATE_LOOKAHEAD[1], max(GATE_LOOKAHEAD[0], 0.5 * g["dist"]))
+    px, py = mx - nx * L, my - ny * L                     # aim point on the centreline before the gate
+    if px < 0.15:
+        px, py = mx, my
+    err = math.atan2(py, px)                              # + = aim point is to our left
+    if abs(err) > math.radians(GATE_CONE_DEG):
+        return None
+    kappa = 2 * py / max(px * px + py * py, 1e-6)        # the arc through (px, py) tangent to our heading
+    v_cap = (GATE_TURN_COMFORT * w_max) / abs(kappa) if abs(kappa) > 1e-6 else float("inf")
+    fade = min(1.0, max(g["dist"] - 0.3, 0.0) / 0.5)
+    w = max(-GATE_NUDGE_MAX, min(GATE_NUDGE_MAX, GATE_NUDGE_GAIN * err)) * fade
+    return {"w": w, "v_cap": v_cap, "dist": g["dist"], "err": err, "aim": (px, py), "gate": g}
 
 
 # ------------------------------------------------------------------------------------- link lag

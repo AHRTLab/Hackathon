@@ -1,0 +1,266 @@
+#!/usr/bin/env python3
+"""One command to calibrate and drive the Jackal in lever mode.
+
+    python examples/lever.py ben                 # first time: calibrates, then drives
+    python examples/lever.py ben                 # later: drives with ben's calibration
+    python examples/lever.py ben --addr nearest  # another armband (or a Myo address)
+
+It starts the Myo publisher and the bridge + sim for you, keeps ben's calibration in data/ben-lever,
+and stops everything on q or Ctrl+C. Between drives: Enter drives again, r recalibrates (the band
+came off or moved), t tunes the turns from ben's drives so far.
+"""
+from __future__ import annotations
+
+import argparse
+import os
+import re
+import signal
+import socket
+import subprocess
+import sys
+import threading
+import time
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+DATA = HERE.parent / "data"
+GESTURES = HERE / "myo_gestures.py"
+PUBLISHER = HERE / "myo_lsl_publisher.py"
+TEAM_MYO = "EC:26:ED:BC:F1:E4"          # our armband; another team's Myo is often in range
+WS_PORTS = (8765, *range(8790, 8800))   # the bridge's default first (something else may hold it)
+UDP_PORTS = (9870, *range(9871, 9880))
+COMPLETE = "calibration-complete"       # written once `record` has finished every take
+IMU_POSES = ("neutral", "arm_up", "roll_left", "roll_right", "tip_down", "brake")  # what `record` writes
+ROUNDS = 3                              # `record` takes each pose at 2, 3 and 5 s
+PUBLISHER_SAYS = ("✓ Streaming", "✗", "! Myo disconnected", "Connecting", "Nearest", "No Myo")  # not the sync hints
+BRIDGE_SAYS = ("jackal-bridge:", "sim page:")
+QUIET = {**os.environ, "PYTHONWARNINGS": "ignore::DeprecationWarning"}
+
+
+class Hangup(Exception):
+    """The terminal closed (or we were told to stop): clean up and leave."""
+
+
+def slug(name: str) -> str:
+    s = re.sub(r"[^\w-]+", "-", name.strip().lower()).strip("-_")
+    if not s:
+        sys.exit("give your name, e.g.  python examples/lever.py ben")
+    return s
+
+
+def folders(data: Path, name: str) -> list[Path]:
+    """data/<name>-lever, data/<name>-lever-2, … in order."""
+    found = [(1, p) for p in [data / f"{name}-lever"] if p.is_dir()]
+    found += [(int(m.group(1)), p) for p in data.glob(f"{name}-lever-*")
+              if p.is_dir() and (m := re.fullmatch(rf"{re.escape(name)}-lever-(\d+)", p.name))]
+    return [p for _, p in sorted(found)]
+
+
+def calibrated(folder: Path) -> bool:
+    """`record` finished here: lever.py marks it, and a folder recorded by hand has every round of every pose
+    (an interrupted `record` has neither, and is never driven from)."""
+    return (folder / COMPLETE).exists() or all(len(list(folder.glob(f"{pose}_*_Myo_IMU.csv"))) >= ROUNDS
+                                               for pose in IMU_POSES)
+
+
+def current(data: Path, name: str) -> Path | None:
+    """The newest complete calibration, or None."""
+    done = [p for p in folders(data, name) if calibrated(p)]
+    return done[-1] if done else None
+
+
+def fresh(data: Path, name: str) -> Path:
+    """A new, unused calibration folder."""
+    have = folders(data, name)
+    if not have and not (data / f"{name}-lever").exists():
+        return data / f"{name}-lever"
+    n = max([1] + [int(p.name.rsplit("-", 1)[1]) for p in have if p.name != f"{name}-lever"]) + 1
+    while (data / f"{name}-lever-{n}").exists():
+        n += 1
+    return data / f"{name}-lever-{n}"
+
+
+def free_port(ports: tuple[int, ...], kind: int) -> int:
+    for port in ports:
+        with socket.socket(socket.AF_INET, kind) as s:
+            try:
+                s.bind(("127.0.0.1", port))
+                return port
+            except OSError:
+                continue
+    sys.exit(f"ports {ports[0]}–{ports[-1]} are all in use: close other bridges and try again")
+
+
+class Background:
+    """A helper process in its own session, so Ctrl+C in the drive doesn't kill it; we stop it at the end."""
+
+    def __init__(self, label: str, cmd: list[str], ready: str | None = None, show: tuple[str, ...] = ()):
+        self.label, self.ready = label, threading.Event()
+        own = ({"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} if os.name == "nt"
+               else {"start_new_session": True})
+        self.proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1,
+                                     encoding="utf-8", errors="replace",
+                                     env={**os.environ, "PYTHONUNBUFFERED": "1", "PYTHONIOENCODING": "utf-8"}, **own)
+        threading.Thread(target=self._read, args=(ready, show), daemon=True).start()
+
+    def _read(self, ready: str | None, show: tuple[str, ...]) -> None:
+        assert self.proc.stdout is not None
+        crashing = False
+        for line in self.proc.stdout:
+            line = line.rstrip()
+            if ready and ready in line:
+                self.ready.set()
+            crashing = crashing or line.startswith("Traceback")
+            if line.strip() and (crashing or line.strip().startswith(show)):
+                print(f"\n  [{self.label}] {line.strip() if not crashing else line}", flush=True)
+
+    def alive(self) -> bool:
+        return self.proc.poll() is None
+
+    def stop(self) -> None:
+        if not self.alive():
+            return
+        if os.name == "nt":
+            self.proc.terminate()
+        else:
+            os.killpg(self.proc.pid, signal.SIGTERM)
+        try:
+            self.proc.wait(5)
+        except subprocess.TimeoutExpired:
+            self.proc.kill() if os.name == "nt" else os.killpg(self.proc.pid, signal.SIGKILL)
+
+
+def wait_until(ok, proc: Background, seconds: float, what: str, hint: str = "") -> None:
+    t_end = time.monotonic() + seconds
+    while not ok():
+        if not proc.alive():
+            sys.exit(f"✗ the {proc.label} stopped while {what}; its messages are above\n{hint}".rstrip())
+        if time.monotonic() > t_end:
+            sys.exit(f"✗ still {what} after {seconds:.0f} s; see the [{proc.label}] messages above\n{hint}".rstrip())
+        time.sleep(0.2)
+
+
+def listening(port: int) -> bool:
+    try:
+        socket.create_connection(("127.0.0.1", port), timeout=0.5).close()
+        return True
+    except OSError:
+        return False
+
+
+def run(cmd: list[str]) -> int:
+    """A foreground step (record, drive, steering); Ctrl+C stops the step, not the launcher."""
+    proc = subprocess.Popen(cmd, env=QUIET)
+    while True:
+        try:
+            return proc.wait()
+        except KeyboardInterrupt:
+            continue                                    # the child got the Ctrl+C too and is stopping
+
+
+def ask(prompt: str) -> str:
+    try:
+        return input(prompt).strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        return "q"
+
+
+def calibrate(data: Path, name: str) -> Path:
+    folder = fresh(data, name)
+    print(f"\n── Calibrate ({folder.relative_to(data.parent)}) ──────────────────────────────────────────\n"
+          "  Six poses, three rounds, about 2.5 minutes. Get into each pose during the countdown and hold\n"
+          "  still until ✓. Make each one the way you'll really drive: that's what the robot learns.")
+    if ask("  Press Enter to start (q to quit) ") == "q":
+        raise SystemExit(0)
+    if run([sys.executable, str(GESTURES), "record", str(folder)]) != 0:
+        sys.exit("✗ calibration didn't finish. Run the same command again to start a new one.")
+    (folder / COMPLETE).write_text(time.strftime("%Y-%m-%d %H:%M:%S\n"))
+    print("\n  ✓ calibrated. (The ⚠ lines above, if any, say which pose to exaggerate next time.)")
+    return folder
+
+
+def start_publisher(helpers: dict, addr: str) -> None:
+    cmd = [sys.executable, str(PUBLISHER), "--quiet"] + ([] if addr == "nearest" else ["--addr", addr])
+    p = helpers["myo"] = Background("myo", cmd, ready="✓ Streaming from", show=PUBLISHER_SAYS)
+    print("Connecting to the Myo (wake it by moving it; close Myo Connect if it's open) …")
+    wait_until(p.ready.is_set, p, 90, "connecting to the Myo", "  To find out why: python examples/myo_check.py")
+
+
+def start_bridge(helpers: dict) -> int:
+    port, udp = free_port(WS_PORTS, socket.SOCK_STREAM), free_port(UDP_PORTS, socket.SOCK_DGRAM)
+    cmd = [sys.executable, "-m", "jackal_bridge", "--serve-site", "--open", "--quiet",
+           "--port", str(port), "--udp-port", str(udp)]
+    b = helpers["bridge"] = Background("bridge", cmd, show=BRIDGE_SAYS)
+    print("Starting the sim (it opens in your browser) …")
+    wait_until(lambda: listening(port), b, 120, "starting the bridge")
+    return port
+
+
+def hang_up(*_) -> None:
+    raise Hangup
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("name", nargs="?", help="your name: your calibration is kept in data/<name>-lever")
+    ap.add_argument("--addr", default=TEAM_MYO, help="Myo address, or 'nearest' (default: our team's, %(default)s)")
+    ap.add_argument("--recalibrate", action="store_true", help="calibrate again before driving")
+    args = ap.parse_args()
+    if args.name is None:
+        try:
+            args.name = input("Your name: ")
+        except (EOFError, KeyboardInterrupt):
+            sys.exit()
+    name = slug(args.name)
+    for sig in ("SIGHUP", "SIGTERM"):
+        if hasattr(signal, sig):
+            signal.signal(getattr(signal, sig), hang_up)
+
+    helpers: dict[str, Background] = {}
+    try:
+        start_publisher(helpers, args.addr)
+        folder = current(DATA, name)
+        if folder is None or args.recalibrate:
+            print("\n  Put the band on snugly, on the thickest part of your forearm, logo on top, and wait\n"
+                  "  about 2 minutes for the electrodes to warm up.")
+            folder = calibrate(DATA, name)
+        else:
+            print(f"\n  Using {name}'s calibration in {folder.relative_to(DATA.parent)}.")
+        port = start_bridge(helpers)
+
+        while True:
+            if not helpers["myo"].alive():
+                print("\n  The Myo publisher stopped; restarting it.")
+                start_publisher(helpers, args.addr)
+            if not helpers["bridge"].alive():
+                print("\n  The bridge stopped; restarting it (the sim opens in a new tab).")
+                port = start_bridge(helpers)
+            print("\n── Drive ──────────────────────────────────────────────────────────────────────────\n"
+                  "  In the browser, pick a course (bottom right). Here: hold your arm FORWARD and LEVEL for\n"
+                  "  the countdown, then RAISE it once to start. Arm forward = go (lower = faster), arm up =\n"
+                  "  stop, roll = steer, tip down = reverse, firm fist = brake. Ctrl+C ends the drive.")
+            code = run([sys.executable, str(GESTURES), "drive", str(folder), "--mode", "lever",
+                        "--bridge", f"ws://localhost:{port}"])
+            if code not in (0, 130):
+                print("\n  The drive stopped with an error (above). If it said the band has moved, press r.")
+            choice = ask("\n  Enter = drive again · r = recalibrate · t = tune turns · q = quit  ")
+            if choice == "q":
+                break
+            if choice == "r":
+                folder = calibrate(DATA, name)
+            elif choice == "t":
+                run([sys.executable, str(GESTURES), "steering", str(folder)])
+    except (KeyboardInterrupt, Hangup):
+        pass
+    finally:
+        signal.signal(signal.SIGINT, signal.SIG_IGN)   # a second Ctrl+C mustn't skip the cleanup
+        for p in helpers.values():
+            p.stop()
+        try:
+            print("\nstopped the Myo publisher and the bridge. Bye!")
+        except OSError:                                  # the terminal is gone
+            pass
+
+
+if __name__ == "__main__":
+    main()
