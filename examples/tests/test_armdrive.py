@@ -310,3 +310,12 @@ def test_lag_compensation_keeps_the_assist_margin_as_lag_grows():
     for lag in (0.3, 0.5):
         assert drive_at_wall(lag, True) >= drive_at_wall(lag, False)
     assert drive_at_wall(0.5, False) < 0.05 < 0.1 < drive_at_wall(0.5, True)      # 500 ms: plain nearly hits
+
+
+def test_blind_schedule_is_balanced_hidden_and_renews(tmp_path):
+    import myo_gestures as M
+    got = [M.blind_condition(tmp_path, 8) for _ in range(8)]
+    assert [k for _, k, _ in got] == list(range(1, 9)) and sum(on for on, _, _ in got) == 4
+    assert M.blind_condition(tmp_path, 8)[1] == 1                    # used up: a fresh schedule starts
+    key = (tmp_path / "blind" / "key.csv").read_text().splitlines()
+    assert key[0] == "session,of,started,lag_comp" and len(key) == 10

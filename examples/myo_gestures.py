@@ -467,7 +467,37 @@ def cmd_steering(args: argparse.Namespace) -> None:
           f"full right at {tuned['full_right']:.0f}° of roll from straight → {out}")
 
 
+def blind_condition(folder: Path, sessions: int) -> tuple[bool, int, int]:
+    """Next lag-comp condition from a balanced, shuffled schedule in <folder>/blind/ (a new one when the
+    last is used up). The key (session, time, condition) goes to blind/key.csv, out of the driver's sight."""
+    import secrets
+    d = folder / "blind"
+    d.mkdir(parents=True, exist_ok=True)
+    sched = d / "schedule.json"
+    plan = json.loads(sched.read_text()) if sched.exists() else None
+    if plan is None or plan["next"] >= len(plan["order"]):
+        order = [True, False] * (sessions // 2)
+        for i in range(len(order) - 1, 0, -1):          # Fisher-Yates with a CSPRNG
+            j = secrets.randbelow(i + 1)
+            order[i], order[j] = order[j], order[i]
+        plan = {"order": order, "next": 0}
+    k = plan["next"]
+    on = bool(plan["order"][k])
+    plan["next"] = k + 1
+    sched.write_text(json.dumps(plan))
+    key = d / "key.csv"
+    new = not key.exists()
+    with open(key, "a") as f:
+        if new:
+            f.write("session,of,started,lag_comp\n")
+        f.write(f"{k + 1},{len(plan['order'])},{datetime.now().isoformat(timespec='seconds')},{on}\n")
+    return on, k + 1, len(plan["order"])
+
+
 def cmd_drive(args: argparse.Namespace) -> None:
+    if args.blind:
+        args.lag_comp, k, n = blind_condition(Path(args.folder), args.blind)
+        print(f"blind session {k}/{n} (condition hidden)")
     tuned = Path(args.folder) / "steering.json"
     if args.mode != "gestures" and tuned.exists():
         t = json.loads(tuned.read_text())
@@ -522,7 +552,7 @@ def cmd_drive(args: argparse.Namespace) -> None:
                     v, w, note = A.assist(v, w, state, ahead)
                     line += f"  [{note}]" if note else ""
                 if lag.latency >= A.LAG_ON_S:
-                    line += f"  [lag {lag.latency * 1000:.0f} ms" + (" comp]" if args.lag_comp else "]")
+                    line += f"  [lag {lag.latency * 1000:.0f} ms" + (" comp]" if args.lag_comp and not args.blind else "]")
                 if bridge is not None and not state and not args.no_assist:
                     line += "  [no sim state: is the sim tab open?]"
                 line += f"  →  v {v:+.2f}  w {w:+.2f}"
@@ -603,6 +633,8 @@ def main() -> None:
     p.add_argument("--lag-comp", action="store_true",
                    help="measure command lag; when it's ≥100 ms, soften steering and run the assist from where "
                         "the robot will be when each command lands")
+    p.add_argument("--blind", type=int, nargs="?", const=8, default=0, metavar="N",
+                   help="blind A/B: --lag-comp on or off per session from a hidden balanced schedule of N (8)")
     p.add_argument("--lag-steer", type=float, default=A.LAG_STEER_K,
                    help="--lag-comp steering softening: gain × 1/(1 + K·lag s) (default %(default)s)")
     p.add_argument("--no-log", action="store_true", help="don't write data/<team>/drives/drive_*.csv")
