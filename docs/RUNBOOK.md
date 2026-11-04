@@ -1,6 +1,6 @@
 # Staff Runbook: AWARE-AI Jackal Hackathon
 
-For organizers and TAs. Students use [`STUDENT_GUIDE.md`](https://github.com/ajbarea/Hackathon/blob/main/STUDENT_GUIDE.md);
+For organizers and TAs. Students use [`STUDENT_GUIDE.md`](https://github.com/ajbarea/myo-lever/blob/main/STUDENT_GUIDE.md);
 design notes and every quirk we hit are in [`SPIKE_FINDINGS.md`](SPIKE_FINDINGS.md).
 
 ## 1. Deploying
@@ -71,7 +71,7 @@ has one condition. `rtlx=1` turns on the NASA-RTLX form after each run.
 
 **Judging:** the procedure (3 attempts per course on L1–L3, best counts, plus a degraded-link L1 run at
 `?course=L1-gates&latency=300&drop=10&seed=1`) and the rubric are in
-[`RUBRIC.md`](https://github.com/ajbarea/Hackathon/blob/main/RUBRIC.md). Enter each team's id on the page
+[`RUBRIC.md`](https://github.com/ajbarea/myo-lever/blob/main/RUBRIC.md). Enter each team's id on the page
 before their runs, and download the Runs CSV afterwards.
 
 **Collecting data at the end of a session:**

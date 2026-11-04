@@ -56,10 +56,10 @@ With one short calibration per person (60 s of held poses) the simple model is t
 only the brake, where the personal LDA made no false fires and no misses on held-out takes.
 
 Full tables, with and without gain augmentation:
-[`examples/TCN.md`](https://github.com/ajbarea/Hackathon/blob/main/examples/TCN.md).
+[`examples/TCN.md`](https://github.com/ajbarea/myo-lever/blob/main/examples/TCN.md).
 
 ## The gate assist
 
 Six scripted off-line approaches to L1's first gate, through the real sim with the controller's assist
 code: 2 of 6 passed the gate with the assist, 0 of 6 without, and 0 collisions either way
-([`gate-trial.json`](https://github.com/ajbarea/Hackathon/blob/main/presentations/aware-ai-deck/gate-trial.json)).
+([`gate-trial.json`](https://github.com/ajbarea/myo-lever/blob/main/presentations/aware-ai-deck/gate-trial.json)).

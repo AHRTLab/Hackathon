@@ -11,7 +11,7 @@ you are already aimed within 20° of a gate, steers you toward its centre by at 
 Install once, quit Myo Connect, then run one command:
 
 ```bash
-git clone https://github.com/ajbarea/Hackathon.git && cd Hackathon
+git clone https://github.com/ajbarea/myo-lever.git && cd myo-lever
 conda env create -f environment.yml          # once, about 5 minutes
 conda activate jackal                        # in every new terminal
 python examples/lever.py <your name>

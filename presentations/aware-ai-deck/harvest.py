@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 
 WT = Path(__file__).resolve().parents[2] / "examples"
-DATA = Path("/Users/ajbarea/ajsoftworks/Hackathon/data")
+DATA = Path("/Users/ajbarea/ajsoftworks/myo-lever/data")
 DS = DATA / "AJ-myo-lever-dataset"
 sys.path.insert(0, str(WT))
 import gestures as G  # noqa: E402

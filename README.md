@@ -9,7 +9,7 @@
 
 [![Best Presentation: AWARE-AI Fall 2026 Hackathon](https://img.shields.io/badge/AWARE--AI_Fall_2026_Hackathon-Best_Presentation-c8102e)](#the-award)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-3776ab?logo=python&logoColor=white)](environment.yml)
-[![Dataset](https://img.shields.io/badge/dataset-AJ's_Myo_recordings-555)](https://github.com/ajbarea/Hackathon/releases/tag/dataset-2026-10-22)
+[![Dataset](https://img.shields.io/badge/dataset-AJ's_Myo_recordings-555)](https://github.com/ajbarea/myo-lever/releases/tag/dataset-2026-10-22)
 
 </div>
 
@@ -53,7 +53,7 @@ with 0 missed gates.
 You need a Myo armband, conda and Chrome. Quit Myo Connect first if it is running.
 
 ```bash
-git clone https://github.com/ajbarea/Hackathon.git && cd Hackathon
+git clone https://github.com/ajbarea/myo-lever.git && cd myo-lever
 conda env create -f environment.yml          # once, about 5 minutes
 conda activate jackal
 python examples/lever.py <your name>
@@ -105,7 +105,7 @@ Myo armband ──BLE──► myo_lsl_publisher.py ──LSL──► Myo_EMG (
 `pytest examples/tests`.
 
 **Data.** AJ's recordings (two sessions, the sim's run CSVs and every drive log) are the
-[`dataset-2026-10-22`](https://github.com/ajbarea/Hackathon/releases/tag/dataset-2026-10-22) release.
+[`dataset-2026-10-22`](https://github.com/ajbarea/myo-lever/releases/tag/dataset-2026-10-22) release.
 
 ## Team
 

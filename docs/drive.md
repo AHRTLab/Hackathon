@@ -10,7 +10,7 @@ description: Install once, put on the Myo, and drive the Jackal sim with one com
 You need a Myo armband, conda and Chrome. Quit Myo Connect first if it is running.
 
 ```bash
-git clone https://github.com/ajbarea/Hackathon.git && cd Hackathon
+git clone https://github.com/ajbarea/myo-lever.git && cd myo-lever
 conda env create -f environment.yml          # once, about 5 minutes
 conda activate jackal                        # in every new terminal
 python examples/lever.py <your name>
@@ -63,7 +63,7 @@ Relaxing your hand never moves the robot, so driving is not tiring.
 | Still not found | Another laptop may hold it: stop `lever.py` there, then run `python examples/myo_check.py` |
 
 More settings (`--expo`, `--vmax`, `--no-assist`, `--no-lag-comp`) and tuning are in
-[`examples/MYO_LEVER.md`](https://github.com/ajbarea/Hackathon/blob/main/examples/MYO_LEVER.md).
+[`examples/MYO_LEVER.md`](https://github.com/ajbarea/myo-lever/blob/main/examples/MYO_LEVER.md).
 
 ## No armband?
 

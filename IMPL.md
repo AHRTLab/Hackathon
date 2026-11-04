@@ -4,7 +4,7 @@
 
 Brief: `~/.local/state/fleet-orchestrator/task-site-deslop.src` (Hackathon, then talks, then
 fleet-briefing). This branch `polish/site-deslop`, worktree `.claude/worktrees/polish`.
-`gh` defaults to upstream AHRTLab: pass `-R ajbarea/Hackathon`. Helper scripts and old reports:
+`gh` defaults to upstream AHRTLab: pass `-R ajbarea/myo-lever`. Helper scripts and old reports:
 `~/.local/state/fleet-orchestrator/site-polish/` (audit.py; the others hard-code an old session's
 scratch path in `S=`, so edit that line before reuse).
 

@@ -57,4 +57,4 @@ Every drive writes `drives/drive_*.csv`: one row per 20 Hz command, with the arm
 features, the command sent and course progress.
 
 Code: `lever.py`, `myo_gestures.py`, `armdrive.py` and `gestures.py` in
-[`examples/`](https://github.com/ajbarea/Hackathon/tree/main/examples). Tests: `pytest examples/tests`.
+[`examples/`](https://github.com/ajbarea/myo-lever/tree/main/examples). Tests: `pytest examples/tests`.

@@ -8,7 +8,7 @@ description: AJ's Myo lever-mode recordings, drive logs and official run scores,
 # Data
 
 AJ's recordings from 2026-10-22 are the
-[`dataset-2026-10-22`](https://github.com/ajbarea/Hackathon/releases/tag/dataset-2026-10-22) release
+[`dataset-2026-10-22`](https://github.com/ajbarea/myo-lever/releases/tag/dataset-2026-10-22) release
 (`AJ-myo-lever-dataset.zip`, about 3.7 MB). One driver, right arm, two wearings of the band.
 
 | Folder | What it holds |
@@ -43,4 +43,4 @@ near-copies of each other.
 
 The four-driver comparison on the [Results](results.md) page also used recordings from Jose, Kiran and
 Xinyi. Their recordings are in the
-[`dataset-2026-10-23`](https://github.com/ajbarea/Hackathon/releases/tag/dataset-2026-10-23) release.
+[`dataset-2026-10-23`](https://github.com/ajbarea/myo-lever/releases/tag/dataset-2026-10-23) release.

@@ -2,9 +2,9 @@
 site_name = "Myo Lever Controller"
 site_description = "Drive a simulated Clearpath Jackal with one forearm: arm angle steers, a firm fist brakes. Best Presentation, AWARE-AI Fall 2026 Hackathon."
 site_author = "AJ Barea"
-site_url = "https://ajbarea.github.io/Hackathon/"
-repo_url = "https://github.com/ajbarea/Hackathon"
-repo_name = "ajbarea/Hackathon"
+site_url = "https://ajbarea.github.io/myo-lever/"
+repo_url = "https://github.com/ajbarea/myo-lever"
+repo_name = "ajbarea/myo-lever"
 copyright = "AJ Barea"
 
 nav = [
@@ -72,7 +72,7 @@ og_image = "assets/sim-l2-slalom.png"
 
 [[project.extra.social]]
 icon = "fontawesome/brands/github"
-link = "https://github.com/ajbarea/Hackathon"
+link = "https://github.com/ajbarea/myo-lever"
 name = "Myo Lever Controller on GitHub"
 
 # Zensical's default extensions, written out because this table replaces them. One change:
