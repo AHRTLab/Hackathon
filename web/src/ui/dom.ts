@@ -9,15 +9,24 @@ export function el<K extends keyof HTMLElementTagNameMap>(
   return n;
 }
 
-export function panel(pos: Partial<CSSStyleDeclaration>, id: string): HTMLDivElement {
+export function panel(pos: Partial<CSSStyleDeclaration>, id: string, label: string): HTMLDivElement {
   const p = el('div', {
     position: 'fixed', zIndex: '10', padding: '10px 12px', borderRadius: '10px',
     background: 'rgba(20,23,28,0.82)', border: '1px solid rgba(255,255,255,0.08)',
     backdropFilter: 'blur(6px)', minWidth: '200px', userSelect: 'none', ...pos,
   });
   p.id = id;
+  p.setAttribute('role', 'region');
+  p.setAttribute('aria-label', label);
   document.body.appendChild(p);
   return p;
+}
+
+/** A visible label tied to the control with this id, so screen readers announce it. */
+export function labelFor(text: string, id: string, style: Partial<CSSStyleDeclaration> = {}): HTMLLabelElement {
+  const l = el('label', { opacity: '.7', ...style }, text);
+  l.htmlFor = id;
+  return l;
 }
 
 export function button(label: string, onClick: () => void, color = '#2d333c'): HTMLButtonElement {
@@ -26,7 +35,8 @@ export function button(label: string, onClick: () => void, color = '#2d333c'): H
     padding: '5px 10px', font: 'inherit', cursor: 'pointer',
   }, label);
   b.addEventListener('click', onClick);
-  b.addEventListener('keydown', (e) => { if (e.key === ' ') e.preventDefault(); }); // Space is "stop", not "click"
+  // Space is "stop" while driving, so it only presses buttons inside a dialog, where driving is paused.
+  b.addEventListener('keydown', (e) => { if (e.key === ' ' && !b.closest('dialog')) e.preventDefault(); });
   return b;
 }
 

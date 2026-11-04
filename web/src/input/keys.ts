@@ -11,12 +11,16 @@ export function typingInField(e: KeyboardEvent): boolean {
   return t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable;
 }
 
+const inDialog = (e: KeyboardEvent): boolean => !!(e.target as Element | null)?.closest?.('dialog[open]');
+
 export function attachKeys(): void {
   if (attached || typeof window === 'undefined') return;
   const onKey = (down: boolean) => (e: KeyboardEvent) => {
     const k = e.key.toLowerCase();
     if (k === 'shift') { held.shift = down; return; }
-    if (typingInField(e) || !HANDLED.has(k)) return;
+    if (!HANDLED.has(k)) return;
+    if (!down) held[k] = false; // always release, even in a field or dialog, so no key stays held
+    if (typingInField(e) || inDialog(e)) return;
     held[k] = down;
     e.preventDefault();
   };

@@ -42,4 +42,5 @@ near-copies of each other.
 ## Other drivers
 
 The four-driver comparison on the [Results](results.md) page also used recordings from Jose, Kiran and
-Xinyi. This site publishes only AJ's recordings and summary figures from the others.
+Xinyi. Their recordings are in the
+[`dataset-2026-10-23`](https://github.com/ajbarea/Hackathon/releases/tag/dataset-2026-10-23) release.

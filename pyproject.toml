@@ -1,7 +1,7 @@
 [project]
 name = "hackathon-site"
 version = "0.1.0"
-description = "Docs site for the Myo lever controller (AWARE-AI Fall Hackathon 2026)"
+description = "Docs site for the Myo lever controller (AWARE-AI Fall 2026 Hackathon)"
 requires-python = ">=3.11"
 dependencies = []
 

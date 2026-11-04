@@ -1,6 +1,6 @@
 ---
 title: Myo Lever Controller
-description: Drive a simulated Clearpath Jackal with one forearm. Best Presentation, AWARE-AI Fall Hackathon 2026.
+description: Drive a simulated Clearpath Jackal with one forearm. Best Presentation, AWARE-AI Fall 2026 Hackathon.
 hide:
   - navigation
   - toc
@@ -10,7 +10,7 @@ hide:
 
 <div class="hero" markdown>
 
-<span class="hero-award">:material-trophy-outline: Best Presentation · AWARE-AI Fall Hackathon 2026</span>
+<span class="hero-award">:material-trophy-outline: Best Presentation · AWARE-AI Fall 2026 Hackathon</span>
 
 # Drive a robot with one forearm
 
@@ -33,7 +33,7 @@ A Myo armband reads your arm like a lever: its angle sets speed and steering, an
 
 ## What we built
 
-Our team's entry to the AWARE-AI Fall Hackathon at RIT, October 22-23, 2026. Every team got the same
+Our team's entry to the AWARE-AI Fall 2026 Hackathon at RIT, October 22-23. Every team got the same
 browser sim of a Clearpath Jackal, a command bridge and a Myo armband. The task: turn the armband's
 signals into forward speed and turn rate, drive three timed courses, then keep the robot drivable over
 a slow, lossy link.
@@ -77,9 +77,11 @@ one command. [All the results, including what did not work →](results.md)
 
 ## The team
 
-**AJ Barea**, **Jose**, **Kiran** and **Xinyi Liu**. Xinyi built the gate assist, the sim's lidar
-minimap, the assist viewer and the pooled brake model; AJ wrote the lever controller, the
-neural-network study and the deck generator. The sim, the bridge and the event kit come from the organizers'
+**AJ Barea**, **Jose**, **Kiran** and **Xinyi Liu**. AJ led development and data collection with
+Claude Code, wrote the lever controller, the neural-network study and the deck generator, and
+published both dataset releases. Xinyi built the gate assist, the sim's lidar minimap, the assist viewer and the pooled
+brake model. Jose, Kiran and Xinyi recorded the calibrations for the four-driver study. The sim, the
+bridge and the event kit come from the organizers'
 [AHRTLab/Hackathon](https://github.com/AHRTLab/Hackathon) repo, which ours forks.
 
 </section>

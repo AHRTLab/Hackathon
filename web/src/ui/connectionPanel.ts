@@ -11,7 +11,7 @@ export class ConnectionPanel {
   private url: HTMLInputElement;
 
   constructor(private client: BridgeClient) {
-    const p = panel({ left: '12px', top: '12px', width: '300px' }, 'connection');
+    const p = panel({ left: '12px', top: '12px', width: '300px' }, 'connection', 'Bridge connection');
     const head = el('div', { display: 'flex', alignItems: 'center', gap: '8px' });
     this.light = el('span', { width: '10px', height: '10px', borderRadius: '50%', display: 'inline-block' });
     this.light.id = 'bridge-light';
@@ -23,6 +23,7 @@ export class ConnectionPanel {
     this.url = el('input', { flex: '1', background: '#2d333c', color: '#e8eaed', border: '1px solid #444', borderRadius: '6px', padding: '4px 6px', font: '12px ui-monospace, monospace' });
     this.url.value = client.url;
     this.url.id = 'bridge-url';
+    this.url.setAttribute('aria-label', 'Bridge address');
     this.url.addEventListener('keydown', (e) => { if (e.key === 'Enter') client.connect(this.url.value.trim()); });
     row.append(this.url, button('Connect', () => client.connect(this.url.value.trim())));
 

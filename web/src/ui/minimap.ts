@@ -23,7 +23,7 @@ export class Minimap {
   private caption: HTMLDivElement;
 
   constructor() {
-    const p = panel({ right: '12px', top: '12px', minWidth: '0', padding: '8px' }, 'minimap');
+    const p = panel({ right: '12px', top: '12px', minWidth: '0', padding: '8px' }, 'minimap', 'Lidar view');
     this.canvas = el('canvas');
     this.canvas.width = SIZE; this.canvas.height = SIZE;
     Object.assign(this.canvas.style, { display: 'block', width: `${SIZE}px`, height: `${SIZE}px`, borderRadius: '6px' });

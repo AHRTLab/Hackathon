@@ -7,7 +7,7 @@
 
 *Drive a simulated Clearpath Jackal with one forearm: arm angle steers, a firm fist brakes.*
 
-[![Best Presentation: AWARE-AI Fall Hackathon 2026](https://img.shields.io/badge/AWARE--AI_Fall_Hackathon_2026-Best_Presentation-c8102e)](#the-award)
+[![Best Presentation: AWARE-AI Fall 2026 Hackathon](https://img.shields.io/badge/AWARE--AI_Fall_2026_Hackathon-Best_Presentation-c8102e)](#the-award)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-3776ab?logo=python&logoColor=white)](environment.yml)
 [![Dataset](https://img.shields.io/badge/dataset-AJ's_Myo_recordings-555)](https://github.com/ajbarea/Hackathon/releases/tag/dataset-2026-10-22)
 
@@ -15,7 +15,7 @@
 
 ---
 
-Our team's entry to the AWARE-AI Fall Hackathon (RIT, October 22-23, 2026). The challenge: read a Myo
+Our team's entry to the AWARE-AI Fall 2026 Hackathon (RIT, October 22-23). The challenge: read a Myo
 armband, turn it into forward speed and turn rate `(v, w)`, and drive a simulated Jackal through three
 timed courses, then keep it drivable over a slow, lossy link. Our controller reads your forearm like a
 lever: the armband's motion sensor sets speed and steering from the arm's angle, and its muscle (EMG)
@@ -24,7 +24,7 @@ nudges you through gates you are already aimed at.
 
 ## The award
 
-The team won **Best Presentation** at the AWARE-AI Fall Hackathon 2026. The deck is built from a
+The team won **Best Presentation** at the AWARE-AI Fall 2026 Hackathon. The deck is built from a
 script that reads every number it shows from the recordings and drive logs
 ([`presentations/aware-ai-deck/`](presentations/aware-ai-deck/)).
 
@@ -109,11 +109,12 @@ Myo armband ──BLE──► myo_lsl_publisher.py ──LSL──► Myo_EMG (
 
 ## Team
 
-AJ Barea, Jose, Kiran and Xinyi Liu. Xinyi built the gate assist, the sim's lidar minimap, the
-assist viewer and the pooled brake model (`train_pooled.py`); AJ wrote
-the lever controller, the TCN study and the deck generator. The event kit below, the sim and the
-bridge come from the organizers' [AHRTLab/Hackathon](https://github.com/AHRTLab/Hackathon) repo, which
-this repo forks.
+AJ Barea, Jose, Kiran and Xinyi Liu. AJ led development and data collection with Claude Code,
+wrote the lever controller, the TCN study and the deck generator, and published both dataset
+releases. Xinyi built the gate assist, the sim's lidar minimap, the assist viewer and the pooled
+brake model (`train_pooled.py`). Jose, Kiran and Xinyi recorded the calibrations for the four-driver study. The
+event kit below, the sim and the bridge come from the organizers'
+[AHRTLab/Hackathon](https://github.com/AHRTLab/Hackathon) repo, which this repo forks.
 
 ---
 

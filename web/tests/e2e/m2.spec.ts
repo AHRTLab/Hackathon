@@ -50,6 +50,8 @@ test('cameras: buttons and C key cycle chase → top → FPV', async ({ page, er
   expect(await page.evaluate(() => (window as any).__cams.mode)).toBe('chase');
   await page.keyboard.press('c');
   expect(await page.evaluate(() => (window as any).__cams.mode)).toBe('top');
+  await expect(page.locator('button[data-cam="top"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('button[data-cam="chase"]')).toHaveAttribute('aria-pressed', 'false');
   await page.keyboard.press('c');
   expect(await page.evaluate(() => (window as any).__cams.mode)).toBe('fpv');
   await page.locator('button[data-cam="chase"]').click();

@@ -6,7 +6,7 @@ import type { Sim } from '../sim/sim';
 import { el, esc, panel } from './dom';
 
 const STATUS_STYLE: Record<Status, [string, string]> = {
-  ok: ['OK', '#2e7d32'], idle: ['IDLE', '#455a64'], deadman: ['DEADMAN', '#e65100'],
+  ok: ['OK', '#1b5e20'], idle: ['IDLE', '#455a64'], deadman: ['DEADMAN', '#bf360c'],
   estop: ['E-STOP', '#c62828'], finished: ['FINISHED', '#1565c0'],
 };
 
@@ -28,7 +28,7 @@ export class Hud {
   private info: HTMLDivElement;
 
   constructor() {
-    const p = panel({ left: '12px', bottom: '12px', width: '260px' }, 'hud');
+    const p = panel({ left: '12px', bottom: '12px', width: '260px' }, 'hud', 'Robot status');
     const head = el('div', { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' });
     this.pill = el('span', { padding: '2px 10px', borderRadius: '10px', fontWeight: '700', letterSpacing: '.04em' });
     this.pill.id = 'hud-status';

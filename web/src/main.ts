@@ -70,7 +70,9 @@ async function main(): Promise<void> {
   const cams = new CameraRig(view.camera, course.arena.size);
   cams.onChange((m) => view.setRobotVisible(m !== 'fpv'));
   view.setRobotVisible(cams.mode !== 'fpv');
+  const rtlx = new RtlxForm();
   window.addEventListener('keydown', (e) => {
+    if (rtlx.open) return; // the workload form is modal
     if (!typingInField(e) && e.key.toLowerCase() === 'c' && !e.metaKey && !e.ctrlKey) cams.cycle();
   });
   const hud = new Hud();
@@ -84,12 +86,17 @@ async function main(): Promise<void> {
     location.search = params.toString(); // simplest correct course switch: reload with the new course
   }, cams, log);
   // Optional workload form after each finish / DNF; answers go into that run's CSV row.
-  const rtlx = new RtlxForm();
+  const nGates = course.gates?.length ?? 0;
+  let asking = 0; // forms queued or open; driving stays paused until all are answered
   log.onRow(async (row) => {
     if (!controls?.askRtlx.checked) return;
+    asking++;
     arbiter.paused = true;
-    const scores = await rtlx.ask(`run ${row.run}, ${row.course}`);
-    arbiter.paused = false;
+    const result = row.completed
+      ? `Finished, score ${Number(row.score_time).toFixed(2)} s.`
+      : nGates > 0 ? `Did not finish, ${row.gates_passed} of ${nGates} gates.` : 'Did not finish.';
+    const scores = await rtlx.ask(`run ${row.run}, ${row.course}`, result);
+    arbiter.paused = --asking > 0;
     if (scores) log.setRtlx(row.run as number, scores);
   });
   if (params.has('debug')) view.showCollision(true);

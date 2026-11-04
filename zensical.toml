@@ -1,6 +1,6 @@
 [project]
 site_name = "Myo Lever Controller"
-site_description = "Drive a simulated Clearpath Jackal with one forearm: arm angle steers, a firm fist brakes. Best Presentation, AWARE-AI Fall Hackathon 2026."
+site_description = "Drive a simulated Clearpath Jackal with one forearm: arm angle steers, a firm fist brakes. Best Presentation, AWARE-AI Fall 2026 Hackathon."
 site_author = "AJ Barea"
 site_url = "https://ajbarea.github.io/Hackathon/"
 repo_url = "https://github.com/ajbarea/Hackathon"
@@ -74,3 +74,36 @@ og_image = "assets/sim-l2-slalom.png"
 icon = "fontawesome/brands/github"
 link = "https://github.com/ajbarea/Hackathon"
 name = "Myo Lever Controller on GitHub"
+
+# Zensical's default extensions, written out because this table replaces them. One change:
+# anchor_linenums off, since no block shows line numbers and each empty anchor is a keyboard stop.
+# Copied from Zensical 0.0.73: on an upgrade, diff it against the new defaults.
+[project.markdown_extensions]
+abbr = {}
+admonition = {}
+attr_list = {}
+def_list = {}
+footnotes = {}
+md_in_html = {}
+toc.permalink = true
+pymdownx.arithmatex.generic = true
+pymdownx.betterem = {}
+pymdownx.caret = {}
+pymdownx.details = {}
+pymdownx.emoji.emoji_generator = "zensical.extensions.emoji.to_svg"
+pymdownx.emoji.emoji_index = "zensical.extensions.emoji.twemoji"
+pymdownx.highlight.anchor_linenums = false
+pymdownx.highlight.line_spans = "__span"
+pymdownx.highlight.pygments_lang_class = true
+pymdownx.inlinehilite = {}
+pymdownx.keys = {}
+pymdownx.magiclink = {}
+pymdownx.mark = {}
+pymdownx.smartsymbols = {}
+pymdownx.superfences.custom_fences = [
+  { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" },
+]
+pymdownx.tabbed.alternate_style = true
+pymdownx.tabbed.combine_header_slug = true
+pymdownx.tasklist.custom_checkbox = true
+pymdownx.tilde = {}

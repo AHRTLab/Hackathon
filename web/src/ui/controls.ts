@@ -2,7 +2,7 @@
 
 import type { CameraRig, CamMode } from '../render/cameras';
 import type { Sim } from '../sim/sim';
-import { button, el, panel } from './dom';
+import { button, el, labelFor, panel } from './dom';
 import { download, type RunLog } from './runLog';
 
 export interface CourseEntry { id: string; name: string }
@@ -14,7 +14,7 @@ export class Controls {
   readonly askRtlx: HTMLInputElement;
 
   constructor(sim: Sim, courses: CourseEntry[], current: string, onCourse: (id: string) => void, cams: CameraRig, log: RunLog) {
-    const p = panel({ right: '12px', bottom: '12px' }, 'controls');
+    const p = panel({ right: '12px', bottom: '12px' }, 'controls', 'Run controls');
     const row = (...kids: HTMLElement[]) => {
       const r = el('div', { display: 'flex', gap: '6px', alignItems: 'center', margin: '4px 0' });
       r.append(...kids);
@@ -22,8 +22,9 @@ export class Controls {
     };
     const pick = el('select', { flex: '1', background: '#2d333c', color: '#e8eaed', border: '1px solid #444', borderRadius: '6px', padding: '4px' });
     for (const c of courses) pick.add(new Option(c.name, c.id, c.id === current, c.id === current));
+    pick.id = 'course-pick';
     pick.addEventListener('change', () => onCourse(pick.value));
-    row(el('span', { opacity: '.7' }, 'course'), pick);
+    row(labelFor('course', pick.id), pick);
 
     row(
       button('Reset', () => sim.reset()),
@@ -36,7 +37,11 @@ export class Controls {
       b.dataset.cam = m;
       camButtons.set(m, b);
     }
-    const paint = (m: CamMode) => camButtons.forEach((b, k) => { b.style.background = k === m ? '#3d5afe' : '#2d333c'; });
+    const paint = (m: CamMode) => camButtons.forEach((b, k) => {
+      b.style.background = k === m ? '#304ffe' : '#2d333c';
+      b.style.boxShadow = k === m ? 'inset 0 -3px 0 #e8eaed' : 'none'; // a cue that does not rely on color
+      b.setAttribute('aria-pressed', String(k === m));
+    });
     cams.onChange(paint);
     paint(cams.mode);
     row(el('span', { opacity: '.7' }, 'camera'), ...camButtons.values());
@@ -44,15 +49,17 @@ export class Controls {
     this.teamInput = el('input', { flex: '1', background: '#2d333c', color: '#e8eaed', border: '1px solid #444', borderRadius: '6px', padding: '4px 6px' });
     this.teamInput.placeholder = 'team id';
     this.teamInput.id = 'team-id';
-    row(el('span', { opacity: '.7' }, 'team'), this.teamInput);
+    row(labelFor('team', this.teamInput.id), this.teamInput);
 
     // Telepresence knobs: command latency and packet drop, applied to every input (bridge and keyboard).
     const knob = (label: string, id: string, max: number, step: number, unit: string, value: number) => {
       const input = el('input', { flex: '1' });
       Object.assign(input, { type: 'range', min: '0', max: String(max), step: String(step), value: String(value), id });
       const out = el('span', { width: '58px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }, `${value} ${unit}`);
-      input.addEventListener('input', () => { out.textContent = `${input.value} ${unit}`; });
-      row(el('span', { opacity: '.7', width: '52px' }, label), input, out);
+      const show = () => { out.textContent = `${input.value} ${unit}`; input.setAttribute('aria-valuetext', out.textContent); };
+      show();
+      input.addEventListener('input', show);
+      row(labelFor(label, id, { width: '52px' }), input, out);
       return input;
     };
     p.appendChild(el('div', { opacity: '.55', fontSize: '11px', marginTop: '6px' }, 'telepresence'));
