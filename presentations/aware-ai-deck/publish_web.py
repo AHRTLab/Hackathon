@@ -3,7 +3,7 @@
     python publish_web.py AWARE-AI-Hackathon-Deck.pptx <rendered-png-dir>
 
 The PNGs come from rendering the .pptx (graphe's `slides.py render`, PowerPoint or LibreOffice).
-Each slide's alt text is its own text; its speaker notes sit in a "What we said" box under it.
+Each slide's alt text is its own text. Speaker notes are not published (the talk was given without them).
 Needs python-pptx and pillow.
 """
 import html
@@ -44,19 +44,19 @@ def main(pptx: str, pngs: str) -> None:
         im = Image.open(Path(pngs) / f"slide-{i:02d}.png").convert("RGB").resize((1600, 900), Image.LANCZOS)
         im.save(OUT / "slides" / name, "WEBP", quality=88, method=6)
         title, alt = slide_text(slide, i)
-        notes = slide.notes_slide.notes_text_frame.text.strip() if slide.has_notes_slide else ""
-        said = (f'<details><summary>What we said</summary><p>{html.escape(notes)}</p></details>'
-                if notes else "")
         note = f'<p class="note">{html.escape(NOTES[i])}</p>' if i in NOTES else ""
         figures.append(
             f'<figure id="s{i}"><img src="slides/{name}" width="1600" height="900" loading="{"eager" if i == 1 else "lazy"}"'
             f' alt="{html.escape(alt, quote=True)}"><figcaption><a href="#s{i}">{i}</a> · {html.escape(title)}'
-            f'</figcaption>{note}{said}</figure>')
+            f'</figcaption>{note}</figure>')
     page = (Path(__file__).with_name("web_deck.html").read_text()
             .replace("{{FIGURES}}", "\n".join(figures)).replace("{{PPTX}}", Path(pptx).name)
             .replace("{{COUNT}}", str(len(figures))))
     (OUT / "index.html").write_text(page)
-    (OUT / Path(pptx).name).write_bytes(Path(pptx).read_bytes())
+    for slide in deck.slides:                # the published .pptx carries no speaker notes either
+        if slide.has_notes_slide:
+            slide.notes_slide.notes_text_frame.clear()
+    deck.save(OUT / Path(pptx).name)
     print(f"{len(figures)} slides -> {OUT}")
 
 
